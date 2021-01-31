@@ -11,6 +11,7 @@ const DEFAULT_SETTINGS: MyPluginSettings = {
 export default class MyPlugin extends Plugin {
 	settings: MyPluginSettings;
 
+	//this seems to be where the plugin started
 	async onload() {
 		console.log('loading plugin');
 
@@ -73,7 +74,7 @@ class SampleModal extends Modal {
 
 	onOpen() {
 		let {contentEl} = this;
-		contentEl.setText('Woah!');
+		contentEl.setText('Hello WOrld!');
 	}
 
 	onClose() {
