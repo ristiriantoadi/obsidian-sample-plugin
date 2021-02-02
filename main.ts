@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Plugin, PluginSettingTab, Setting,MarkdownView,normalizePath } from 'obsidian';
+import { App, Modal, Notice, Plugin, PluginSettingTab, Setting,MarkdownView,normalizePath, TextComponent } from 'obsidian';
 import aes from 'crypto-js/aes';
 import CryptoJS from "crypto-js/core";
 interface MyPluginSettings {
@@ -16,33 +16,15 @@ export default class MyPlugin extends Plugin {
 	async onload() {
 		console.log('loading plugin');
 
-		// let leaf = this.app.workspace.activeLeaf;
-		// if (leaf) {
-		// 	const currentView = leaf.view as MarkdownView;
-		// 	const currentFile = currentView.file
-		// 	// return {currentView, currentFile};
-		// 	// existingContent = existingContent ?? (await this.app.vault.read(file) + '\r\r');
-		// 	// var text = await this.app.vault.read(currentFile)
-		// 	console.log("currentfile")
-		// 	console.log(currentFile)
-		// }
-
-		// // INIT
-		// var myString   = "blablabla Card game bla";
-		// var myPassword = "myPassword";
-
-		// // PROCESS
-		// var encrypted = aes.encrypt(myString, myPassword);
-		// console.log("encrypted: "+encrypted)
-		// var decrypted = aes.decrypt(encrypted, myPassword);
-		// console.log("decrypted: "+decrypted.toString(CryptoJS.enc.Utf8))
-
-
-		// console.log(sha256("Message"));
 		await this.loadSettings();
 
-		this.addRibbonIcon('dice', 'Sample Plugin', () => {
-			new Notice('This is a notice!');
+		// this.addRibbonIcon('dice', 'Sample Plugin', () => {
+		// 	new Notice('This is a notice!');
+		// });
+
+		this.addRibbonIcon('dice', 'Encryption', () => {
+			// console.log("encrypt")
+			new EncryptionModal(this.app).open()
 		});
 
 		this.addStatusBarItem().setText('Status Bar Text');
@@ -62,13 +44,13 @@ export default class MyPlugin extends Plugin {
 					// 	console.log("text")
 					// 	console.log(text)
 					// })
-					const loremIpsumPath = normalizePath(this.app.vault.getRoot().path+"lorem ipsum.md")
-					this.app.vault.adapter.read(loremIpsumPath).then(text=>{
-						var decrypted = aes.decrypt(text, "myPassword").toString(CryptoJS.enc.Utf8)
-						return this.app.vault.adapter.write(loremIpsumPath,decrypted,()=>{
-							console.log("done")
-						})	
-					})
+					// const loremIpsumPath = normalizePath(this.app.vault.getRoot().path+"lorem ipsum.md")
+					// this.app.vault.adapter.read(loremIpsumPath).then(text=>{
+					// 	var decrypted = aes.decrypt(text, "myPassword").toString(CryptoJS.enc.Utf8)
+					// 	return this.app.vault.adapter.write(loremIpsumPath,decrypted,()=>{
+					// 		console.log("done")
+					// 	})	
+					// })
 					// 	// console.log(text)
 					// 	// PROCESS
 					// 	var encrypted = aes.encrypt(text, "myPassword");
@@ -115,6 +97,28 @@ export default class MyPlugin extends Plugin {
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
+}
+
+
+class EncryptionModal extends Modal{
+	constructor(app: App) {
+		super(app);
+	}
+
+	onOpen() {
+		// let {contentEl} = this;
+		// contentEl.setText('Hello WOrld!');
+		let {modalEl,titleEl,contentEl} = this;
+		titleEl.setText("Enkripsi");
+		new TextComponent(contentEl).setPlaceholder("Enter password ... ")
+
+	}
+
+	onClose() {
+		let {contentEl} = this;
+		contentEl.empty();
+	}
+
 }
 
 class SampleModal extends Modal {
