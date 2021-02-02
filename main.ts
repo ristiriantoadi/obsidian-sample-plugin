@@ -1,5 +1,6 @@
 import { App, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
-
+import aes from 'crypto-js/aes';
+import CryptoJS from "crypto-js/core";
 interface MyPluginSettings {
 	mySetting: string;
 }
@@ -15,6 +16,18 @@ export default class MyPlugin extends Plugin {
 	async onload() {
 		console.log('loading plugin');
 
+		// INIT
+		var myString   = "blablabla Card game bla";
+		var myPassword = "myPassword";
+
+		// PROCESS
+		var encrypted = aes.encrypt(myString, myPassword);
+		console.log("encrypted: "+encrypted)
+		var decrypted = aes.decrypt(encrypted, myPassword);
+		console.log("decrypted: "+decrypted.toString(CryptoJS.enc.Utf8))
+
+
+		// console.log(sha256("Message"));
 		await this.loadSettings();
 
 		this.addRibbonIcon('dice', 'Sample Plugin', () => {
