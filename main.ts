@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Plugin, PluginSettingTab, Setting,MarkdownView,normalizePath, TextComponent } from 'obsidian';
+import { App, Modal, Notice, Plugin, PluginSettingTab, Setting,MarkdownView,normalizePath, TextComponent,ButtonComponent } from 'obsidian';
 import aes from 'crypto-js/aes';
 import CryptoJS from "crypto-js/core";
 interface MyPluginSettings {
@@ -27,6 +27,11 @@ export default class MyPlugin extends Plugin {
 			new EncryptionModal(this.app).open()
 		});
 
+		this.addRibbonIcon('dice', 'Decryption', () => {
+			// console.log("encrypt")
+			new DecryptionModal(this.app).open()
+		});
+
 		this.addStatusBarItem().setText('Status Bar Text');
 
 		this.addCommand({
@@ -38,31 +43,6 @@ export default class MyPlugin extends Plugin {
 			checkCallback: (checking: boolean) => {
 				let leaf = this.app.workspace.activeLeaf;
 				if (leaf) {
-					// const currentView = leaf.view as MarkdownView;
-					// const currentFile = currentView.file
-					// this.app.vault.read(currentFile).then(text=>{
-					// 	console.log("text")
-					// 	console.log(text)
-					// })
-					// const loremIpsumPath = normalizePath(this.app.vault.getRoot().path+"lorem ipsum.md")
-					// this.app.vault.adapter.read(loremIpsumPath).then(text=>{
-					// 	var decrypted = aes.decrypt(text, "myPassword").toString(CryptoJS.enc.Utf8)
-					// 	return this.app.vault.adapter.write(loremIpsumPath,decrypted,()=>{
-					// 		console.log("done")
-					// 	})	
-					// })
-					// 	// console.log(text)
-					// 	// PROCESS
-					// 	var encrypted = aes.encrypt(text, "myPassword");
-					// 	// console.log("encrypted: "+encrypted)
-					// 	return this.app.vault.adapter.write(loremIpsumPath,encrypted.toString(),()=>{
-					// 		console.log("done")
-					// 	})
-					// })
-
-					// var decrypted = aes.decrypt(encrypted, myPassword);
-					// console.log("decrypted: "+decrypted.toString(CryptoJS.enc.Utf8))
-					
 					if (!checking) {
 						
 						new SampleModal(this.app).open();
@@ -106,11 +86,73 @@ class EncryptionModal extends Modal{
 	}
 
 	onOpen() {
-		// let {contentEl} = this;
-		// contentEl.setText('Hello WOrld!');
+		const currentView = this.app.workspace.activeLeaf.view as MarkdownView;
+		const currentFile = currentView.file
+		const filename=currentFile.name
 		let {modalEl,titleEl,contentEl} = this;
-		titleEl.setText("Enkripsi");
-		new TextComponent(contentEl).setPlaceholder("Enter password ... ")
+		titleEl.setText(`Encrypt: ${filename}`);
+		contentEl.addClass("encryption")
+		var inputKey = new TextComponent(contentEl).setPlaceholder("Enter key ... ")
+		inputKey.inputEl.type="password"
+		const confirmKey = new TextComponent(contentEl).setPlaceholder("Confirm key ... ")
+		confirmKey.inputEl.type="password"
+		new ButtonComponent(contentEl).setButtonText("Encrypt").onClick(()=>{
+			if(inputKey.getValue().length <8){
+				new Notice('8 characters minimum!')
+				return
+			}
+			if(inputKey.getValue() !== confirmKey.getValue()){
+				new Notice('confirmation key wrong!');
+				return;
+			}
+			this.app.vault.read(currentFile).then(text=>{
+				 const key = inputKey.getValue()
+				 const encrypted = aes.encrypt(text, key);
+				 return this.app.vault.modify(currentFile,encrypted.toString())
+			})
+			.then(()=>{
+				this.close()
+			})
+		})
+		console.log(modalEl)
+
+	}
+
+	onClose() {
+		let {contentEl} = this;
+		contentEl.empty();
+	}
+
+}
+
+class DecryptionModal extends Modal{
+	constructor(app: App) {
+		super(app);
+	}
+
+	onOpen() {
+		const currentView = this.app.workspace.activeLeaf.view as MarkdownView;
+		const currentFile = currentView.file
+		const filename=currentFile.name
+		let {modalEl,titleEl,contentEl} = this;
+		titleEl.setText(`Decrypt: ${filename}`);
+		contentEl.addClass("encryption")
+		var inputKey = new TextComponent(contentEl).setPlaceholder("Enter key ... ")
+		inputKey.inputEl.type="password"
+		new ButtonComponent(contentEl).setButtonText("Decrypt").onClick(()=>{
+			this.app.vault.read(currentFile).then(text=>{
+				var decrypted = aes.decrypt(text, inputKey.getValue()).toString(CryptoJS.enc.Utf8);
+				return this.app.vault.modify(currentFile,decrypted)
+			})
+			.then(()=>{
+				this.close()
+			})
+			.catch(err=>{
+				new Notice("Wrong key")
+				console.log(err)
+			})
+		})
+		console.log(modalEl)
 
 	}
 

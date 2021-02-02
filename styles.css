@@ -2,3 +2,8 @@
 body {
     color: blue;
 }
+
+.encryption{
+    display: flex;
+    justify-content: center;
+}
