@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Modal, Notice, Plugin, PluginSettingTab, Setting,MarkdownView,normalizePath } from 'obsidian';
 import aes from 'crypto-js/aes';
 import CryptoJS from "crypto-js/core";
 interface MyPluginSettings {
@@ -16,15 +16,26 @@ export default class MyPlugin extends Plugin {
 	async onload() {
 		console.log('loading plugin');
 
-		// INIT
-		var myString   = "blablabla Card game bla";
-		var myPassword = "myPassword";
+		// let leaf = this.app.workspace.activeLeaf;
+		// if (leaf) {
+		// 	const currentView = leaf.view as MarkdownView;
+		// 	const currentFile = currentView.file
+		// 	// return {currentView, currentFile};
+		// 	// existingContent = existingContent ?? (await this.app.vault.read(file) + '\r\r');
+		// 	// var text = await this.app.vault.read(currentFile)
+		// 	console.log("currentfile")
+		// 	console.log(currentFile)
+		// }
 
-		// PROCESS
-		var encrypted = aes.encrypt(myString, myPassword);
-		console.log("encrypted: "+encrypted)
-		var decrypted = aes.decrypt(encrypted, myPassword);
-		console.log("decrypted: "+decrypted.toString(CryptoJS.enc.Utf8))
+		// // INIT
+		// var myString   = "blablabla Card game bla";
+		// var myPassword = "myPassword";
+
+		// // PROCESS
+		// var encrypted = aes.encrypt(myString, myPassword);
+		// console.log("encrypted: "+encrypted)
+		// var decrypted = aes.decrypt(encrypted, myPassword);
+		// console.log("decrypted: "+decrypted.toString(CryptoJS.enc.Utf8))
 
 
 		// console.log(sha256("Message"));
@@ -45,7 +56,33 @@ export default class MyPlugin extends Plugin {
 			checkCallback: (checking: boolean) => {
 				let leaf = this.app.workspace.activeLeaf;
 				if (leaf) {
+					// const currentView = leaf.view as MarkdownView;
+					// const currentFile = currentView.file
+					// this.app.vault.read(currentFile).then(text=>{
+					// 	console.log("text")
+					// 	console.log(text)
+					// })
+					const loremIpsumPath = normalizePath(this.app.vault.getRoot().path+"lorem ipsum.md")
+					this.app.vault.adapter.read(loremIpsumPath).then(text=>{
+						var decrypted = aes.decrypt(text, "myPassword").toString(CryptoJS.enc.Utf8)
+						return this.app.vault.adapter.write(loremIpsumPath,decrypted,()=>{
+							console.log("done")
+						})	
+					})
+					// 	// console.log(text)
+					// 	// PROCESS
+					// 	var encrypted = aes.encrypt(text, "myPassword");
+					// 	// console.log("encrypted: "+encrypted)
+					// 	return this.app.vault.adapter.write(loremIpsumPath,encrypted.toString(),()=>{
+					// 		console.log("done")
+					// 	})
+					// })
+
+					// var decrypted = aes.decrypt(encrypted, myPassword);
+					// console.log("decrypted: "+decrypted.toString(CryptoJS.enc.Utf8))
+					
 					if (!checking) {
+						
 						new SampleModal(this.app).open();
 					}
 					return true;
