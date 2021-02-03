@@ -1,6 +1,8 @@
-import { App, Modal, Notice, Plugin, PluginSettingTab, Setting,MarkdownView,normalizePath, TextComponent,ButtonComponent } from 'obsidian';
+import { App, Modal, Notice, Plugin, PluginSettingTab, Setting,MarkdownView,normalizePath, TextComponent,ButtonComponent, TFile } from 'obsidian';
 import aes from 'crypto-js/aes';
 import CryptoJS from "crypto-js/core";
+import { start } from 'repl';
+// import CodeMirror from "codemirror";
 interface MyPluginSettings {
 	mySetting: string;
 }
@@ -11,9 +13,14 @@ const DEFAULT_SETTINGS: MyPluginSettings = {
 
 export default class MyPlugin extends Plugin {
 	settings: MyPluginSettings;
-	startLineofCurrentBlock:Number=0
+	//timestamp plugin variables
+	startLineofCurrentBlock:number=0
+	firstChangeTime:number=-1
+	lastChangeTime:number
+	currentFile:TFile
+	// lines:String
 
-	getStartLineOfCurrentBlock(cm:CodeMirror.Editor):Number{
+	getStartLineOfCurrentBlock(cm:CodeMirror.Editor):number{
 		const cursorLine = cm.getCursor().line
 		const lines = cm.getValue().split("\n")
 		
@@ -30,7 +37,6 @@ export default class MyPlugin extends Plugin {
 	//this seems to be where the plugin started
 	async onload() {
 		console.log('loading plugin');
-
 		await this.loadSettings();
 
 
@@ -76,10 +82,33 @@ export default class MyPlugin extends Plugin {
 			cm.on("cursorActivity",(cm)=>{
 				//get current block
 				var startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
+				// console.log(startLineOfCurrentBlock)
 				if(startLineOfCurrentBlock != this.startLineofCurrentBlock){
-					console.log("block changed")
+					//update the doc
+					const lines = cm.getValue().split("\n")
+					console.log(lines[startLineOfCurrentBlock])
+					if(lines[this.startLineofCurrentBlock]){
+						var timestamp
+						if(!lines[this.startLineofCurrentBlock].startsWith("^")){
+							timestamp = `^{created:${this.firstChangeTime},updated:${this.lastChangeTime}}\n`
+							cm.replaceRange(timestamp,CodeMirror.Pos(this.startLineofCurrentBlock,0))
+						}
+						startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm)
+					}
+					//reset timestamp for the next block
+					this.firstChangeTime=-1
+					this.lastChangeTime=-1
 					this.startLineofCurrentBlock=startLineOfCurrentBlock
 				}
+			})
+			cm.on("change",(cm,co)=>{
+				// console.log("changed")
+				//get first change timestamp
+				if(this.firstChangeTime == -1){
+					this.firstChangeTime= Date.now()
+					// console.log("First change: "+this.firstChangeTime)
+				}
+				this.lastChangeTime = Date.now()
 			})
 		});
 
