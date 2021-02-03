@@ -11,27 +11,28 @@ const DEFAULT_SETTINGS: MyPluginSettings = {
 
 export default class MyPlugin extends Plugin {
 	settings: MyPluginSettings;
+	currentBlock:Number
 
-	getCurrentBlock(cm:CodeMirror.Editor){
+	getCurrentBlock(cm:CodeMirror.Editor):Number{
 		const cursorLine = cm.getCursor().line
 		const lines = cm.getValue().split("\n")
 		
 		//get start of block
-		var startOfBlock:String
+		var startOfBlock:Number
 		var currentLine = cursorLine;
 		while(currentLine>=0 && lines[currentLine] != ''){
-			startOfBlock = lines[currentLine]
+			// startOfBlock = lines[currentLine]
+			startOfBlock=currentLine;
 			currentLine--;
 		}
-
 		//get end of block
-		var endOfBlock:String
-		var currentLine = cursorLine;
-		while(currentLine<lines.length && lines[currentLine] != ''){
-			endOfBlock = lines[currentLine]
-			currentLine++;
-		}
-		console.log(endOfBlock)
+		// var endOfBlock:String
+		// var currentLine = cursorLine;
+		// while(currentLine<lines.length && lines[currentLine] != ''){
+		// 	endOfBlock = lines[currentLine]
+		// 	currentLine++;
+		// }
+		return startOfBlock;
 	}
 
 	//this seems to be where the plugin started
@@ -83,9 +84,12 @@ export default class MyPlugin extends Plugin {
 			console.log('codemirror', cm)
 
 			cm.on("cursorActivity",(cm)=>{
-				console.log("changed")
 				//get current block
-				this.getCurrentBlock(cm)
+				var currentBlock = this.getCurrentBlock(cm)
+				if(currentBlock != this.currentBlock){
+					console.log("block changed")
+					this.currentBlock=currentBlock;
+				}
 			})
 		});
 
