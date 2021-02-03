@@ -15,11 +15,24 @@ export default class MyPlugin extends Plugin {
 	settings: MyPluginSettings;
 	//timestamp plugin variables
 	startLineofCurrentBlock:number=0
-	firstChangeTime:number=-1
-	lastChangeTime:number
+	firstChangeTime:string="-1"
+	lastChangeTime:string
 	currentFile:TFile
+	changed:boolean=false
+	count:number=0
 	// lines:String
 
+	formatDate(date:Date):string{
+		// const tanggalMuatAkhirChangeThis = `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}`
+		var getYear:string = date.getFullYear().toString();
+        var getMonth:string = date.getMonth()+1 < 10 ? `0${date.getMonth()+1}`:`${date.getMonth()+1}`;	
+        var getDate:string = date.getDate() < 10 ? `0${date.getDate()}`:`${date.getDate()}`
+		var getHour:string = date.getHours()< 10 ? `0${date.getHours()}`:`${date.getHours()}`
+		var getMinute:string = date.getMinutes()< 10 ? `0${date.getMinutes()}`:`${date.getMinutes()}`
+
+		return  `${getYear}-${getMonth}-${getDate} ${getHour}:${getMinute}`
+    }
+	
 	getStartLineOfCurrentBlock(cm:CodeMirror.Editor):number{
 		const cursorLine = cm.getCursor().line
 		const lines = cm.getValue().split("\n")
@@ -80,45 +93,56 @@ export default class MyPlugin extends Plugin {
 
 		this.registerCodeMirror((cm: CodeMirror.Editor) => {
 			cm.on("cursorActivity",(cm)=>{
-				//get current block
-				var startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
-				// console.log(startLineOfCurrentBlock)
-				if(startLineOfCurrentBlock != this.startLineofCurrentBlock){
-					//update the doc
-					const lines = cm.getValue().split("\n")
-					console.log(lines[startLineOfCurrentBlock])
-					if(lines[this.startLineofCurrentBlock]){
-						var timestamp
-						if(!lines[this.startLineofCurrentBlock].startsWith("^")){
-							timestamp = `^{created:${this.firstChangeTime},updated:${this.lastChangeTime}}\n`
-							cm.replaceRange(timestamp,CodeMirror.Pos(this.startLineofCurrentBlock,0))
+				console.log("cursor activity")
+				//check if cursor have change block position
+				if(this.changed){
+					var startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
+					console.log("old line block: "+this.startLineofCurrentBlock)
+					console.log("current line block: "+startLineOfCurrentBlock)
+					if(startLineOfCurrentBlock != this.startLineofCurrentBlock){
+						console.log("change block")
+						//update the doc
+						const lines = cm.getValue().split("\n")
+						if(lines[this.startLineofCurrentBlock]){
+							if(!lines[this.startLineofCurrentBlock].startsWith("^")){
+								var timestamp = `^{created:${this.firstChangeTime},updated:${this.lastChangeTime}}\n`
+								cm.replaceRange(timestamp,CodeMirror.Pos(this.startLineofCurrentBlock,0))
+							}else{
+								lines[this.startLineofCurrentBlock] = lines[this.startLineofCurrentBlock]
+								.replace(/updated:[0-9]+-[0-9]+-[0-9]+ [0-9]+:[0-9]+/,`updated:${this.lastChangeTime}`)
+								const newContent = lines.join("\n")
+								const cursorPos = cm.getCursor()
+								cm.setValue(newContent)
+								this.count=0;
+								cm.setCursor(cursorPos)
+							}
+							// startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm)
 						}
-						startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm)
+						//reset all variables for the next block
+						this.firstChangeTime="-1"
+						this.lastChangeTime="-1"
+						this.startLineofCurrentBlock=this.getStartLineOfCurrentBlock(cm)
+						this.changed=false;
 					}
-					//reset timestamp for the next block
-					this.firstChangeTime=-1
-					this.lastChangeTime=-1
-					this.startLineofCurrentBlock=startLineOfCurrentBlock
 				}
 			})
 			cm.on("change",(cm,co)=>{
-				// console.log("changed")
-				//get first change timestamp
-				if(this.firstChangeTime == -1){
-					this.firstChangeTime= Date.now()
-					// console.log("First change: "+this.firstChangeTime)
+				if(this.count == 0){
+					this.count++;
+					return;
 				}
-				this.lastChangeTime = Date.now()
+				if(this.firstChangeTime == "-1"){
+					// console.log("first change")
+					this.firstChangeTime= this.formatDate(new Date())
+				}
+				console.log("change")
+				this.lastChangeTime = this.formatDate(new Date())
+				this.changed=true
 			})
 		});
 
 		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			// console.log('click', evt);
 			const view = this.app.workspace.activeLeaf.view as MarkdownView
-			// console.log("MarkdownView")
-			// console.log(view)
-			// console.log("MarkdownView data")
-			// console.log(view.data)
 		});
 
 		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
