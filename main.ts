@@ -12,11 +12,34 @@ const DEFAULT_SETTINGS: MyPluginSettings = {
 export default class MyPlugin extends Plugin {
 	settings: MyPluginSettings;
 
+	getCurrentBlock(cm:CodeMirror.Editor){
+		const cursorLine = cm.getCursor().line
+		const lines = cm.getValue().split("\n")
+		
+		//get start of block
+		var startOfBlock:String
+		var currentLine = cursorLine;
+		while(currentLine>=0 && lines[currentLine] != ''){
+			startOfBlock = lines[currentLine]
+			currentLine--;
+		}
+
+		//get end of block
+		var endOfBlock:String
+		var currentLine = cursorLine;
+		while(currentLine<lines.length && lines[currentLine] != ''){
+			endOfBlock = lines[currentLine]
+			currentLine++;
+		}
+		console.log(endOfBlock)
+	}
+
 	//this seems to be where the plugin started
 	async onload() {
 		console.log('loading plugin');
 
 		await this.loadSettings();
+
 
 		// this.addRibbonIcon('dice', 'Sample Plugin', () => {
 		// 	new Notice('This is a notice!');
@@ -44,8 +67,9 @@ export default class MyPlugin extends Plugin {
 				let leaf = this.app.workspace.activeLeaf;
 				if (leaf) {
 					if (!checking) {
-						
-						new SampleModal(this.app).open();
+						const view = leaf.view as MarkdownView
+						view.showSearch(true)
+						// new SampleModal(this.app).open();
 					}
 					return true;
 				}
@@ -56,11 +80,22 @@ export default class MyPlugin extends Plugin {
 		this.addSettingTab(new SampleSettingTab(this.app, this));
 
 		this.registerCodeMirror((cm: CodeMirror.Editor) => {
-			console.log('codemirror', cm);
+			console.log('codemirror', cm)
+
+			cm.on("cursorActivity",(cm)=>{
+				console.log("changed")
+				//get current block
+				this.getCurrentBlock(cm)
+			})
 		});
 
 		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
+			// console.log('click', evt);
+			const view = this.app.workspace.activeLeaf.view as MarkdownView
+			// console.log("MarkdownView")
+			// console.log(view)
+			// console.log("MarkdownView data")
+			// console.log(view.data)
 		});
 
 		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
@@ -152,7 +187,7 @@ class DecryptionModal extends Modal{
 				console.log(err)
 			})
 		})
-		console.log(modalEl)
+		// console.log(modalEl)
 
 	}
 
