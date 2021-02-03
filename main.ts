@@ -35,8 +35,8 @@ export default class MyPlugin extends Plugin {
 		const lines = cm.getValue().split("\n")
 		
 		//get start of block
-		var startLineOfCurrentBlock = this.startLineofCurrentBlock
 		var currentLine = cursorLine;
+		var startLineOfCurrentBlock = currentLine;
 		while(currentLine>=0 && lines[currentLine] != ''){
 			startLineOfCurrentBlock=currentLine;
 			currentLine--;
@@ -62,71 +62,41 @@ export default class MyPlugin extends Plugin {
 		this.addSettingTab(new SampleSettingTab(this.app, this));
 
 		this.registerCodeMirror((cm: CodeMirror.Editor) => {
-			// cm.on("cursorActivity",(cm)=>{
-			// 	var startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
-			// 	//check if cursor have change block position
-			// 	if(startLineOfCurrentBlock != this.startLineofCurrentBlock){
-			// 		console.log("change block")
-			// 		console.log("changed: "+this.changed)
-			// 		//update the doc
-			// 		if(this.changed){
-			// 			const lines = cm.getValue().split("\n")
-			// 			if(lines[this.startLineofCurrentBlock]){
-			// 				if(!lines[this.startLineofCurrentBlock].startsWith("^")){
-			// 					var timestamp = `^{created:${this.firstChangeTime},updated:${this.lastChangeTime}}\n`
-			// 					cm.replaceRange(timestamp,CodeMirror.Pos(this.startLineofCurrentBlock,0))
-			// 				}else{
-			// 					lines[this.startLineofCurrentBlock] = lines[this.startLineofCurrentBlock]
-			// 					.replace(/updated:[0-9]+-[0-9]+-[0-9]+ [0-9]+:[0-9]+/,`updated:${this.lastChangeTime}`)
-			// 					const newContent = lines.join("\n")
-			// 					const cursorPos = cm.getCursor()
-			// 					cm.setValue(newContent)
-			// 					cm.setCursor(cursorPos)
-			// 				}
-			// 			}
-			// 			this.changed=false;
-			// 		}
-			// 		//reset all variables for the next block
-			// 		this.firstChangeTime="-1"
-			// 		this.lastChangeTime="-1"
-			// 		this.startLineofCurrentBlock=this.getStartLineOfCurrentBlock(cm)
-			// 		this.count=0;
-			// 	}
-			// })
+			const app = this.app
 			cm.on("change",(cm,co)=>{
-				if(this.count == 0){
-					this.count++;
-					return;
-				}
-				if(this.firstChangeTime == "-1"){
-					this.firstChangeTime= this.formatDate(new Date())
-				}
-				this.lastChangeTime = this.formatDate(new Date())
-				
-				var startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
+				const changeTime = this.formatDate(new Date())
+				const startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
 				const lines = cm.getValue().split("\n")
-				if(lines[this.startLineofCurrentBlock]){
-								if(!lines[this.startLineofCurrentBlock].startsWith("^")){
-									var timestamp = `^{created:${this.firstChangeTime},updated:${this.lastChangeTime}}\n`
-									cm.replaceRange(timestamp,CodeMirror.Pos(this.startLineofCurrentBlock,0))
-								}else{
-									lines[this.startLineofCurrentBlock] = lines[this.startLineofCurrentBlock]
-									.replace(/updated:[0-9]+-[0-9]+-[0-9]+ [0-9]+:[0-9]+/,`updated:${this.lastChangeTime}`)
-									const newContent = lines.join("\n")
-									const cursorPos = cm.getCursor()
-									cm.setValue(newContent)
-									cm.setCursor(cursorPos)
-								}
+				if(lines[startLineOfCurrentBlock]){
+					// console.log("called")
+					const leaf = app.workspace.activeLeaf;
+					if(!leaf)
+						return;
+					const currentView = leaf.view as MarkdownView;
+					const currentFile = currentView.file
+					var newContent:string="";
+					if(!lines[startLineOfCurrentBlock].startsWith("^")){
+						var timestamp = `^{created:${changeTime},updated:${changeTime}}\n`
+						for(var n = 0;n<lines.length;n++){
+							if(n == startLineOfCurrentBlock){
+								newContent+=timestamp
 							}
-							// this.changed=false;
+							newContent+=lines[n]+"\n";
 						}
-						//reset all variables for the next block
-						this.firstChangeTime="-1"
-						this.lastChangeTime="-1"
-						this.startLineofCurrentBlock=this.getStartLineOfCurrentBlock(cm)
-						this.count=0;
+						const cursorPos = cm.getCursor()
+						this.app.vault.modify(currentFile,newContent).then(()=>{
+							cursorPos.line +=1 
+							cm.setCursor(cursorPos)
+						})
+					}else{
+						lines[startLineOfCurrentBlock] = lines[startLineOfCurrentBlock]
+						.replace(/updated:[0-9]+-[0-9]+-[0-9]+ [0-9]+:[0-9]+/,`updated:${changeTime}`)
+						newContent = lines.join("\n")
+						this.app.vault.modify(currentFile,newContent)
+					}
+				}
 			})
-		});
+		})
 
 		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
 			const view = this.app.workspace.activeLeaf.view as MarkdownView
