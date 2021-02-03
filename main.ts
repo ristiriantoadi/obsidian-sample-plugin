@@ -13,13 +13,6 @@ const DEFAULT_SETTINGS: MyPluginSettings = {
 
 export default class MyPlugin extends Plugin {
 	settings: MyPluginSettings;
-	//timestamp plugin variables
-	startLineofCurrentBlock:number=0
-	firstChangeTime:string="-1"
-	lastChangeTime:string
-	currentFile:TFile
-	changed:boolean=false
-	count:number=0
 	
 	formatDate(date:Date):string{
 		var getYear:string = date.getFullYear().toString();
@@ -33,7 +26,6 @@ export default class MyPlugin extends Plugin {
 	getStartLineOfCurrentBlock(cm:CodeMirror.Editor):number{
 		const cursorLine = cm.getCursor().line
 		const lines = cm.getValue().split("\n")
-		
 		//get start of block
 		var currentLine = cursorLine;
 		var startLineOfCurrentBlock = currentLine;
@@ -62,14 +54,12 @@ export default class MyPlugin extends Plugin {
 		this.addSettingTab(new SampleSettingTab(this.app, this));
 
 		this.registerCodeMirror((cm: CodeMirror.Editor) => {
-			const app = this.app
 			cm.on("change",(cm,co)=>{
 				const changeTime = this.formatDate(new Date())
 				const startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
 				const lines = cm.getValue().split("\n")
 				if(lines[startLineOfCurrentBlock]){
-					// console.log("called")
-					const leaf = app.workspace.activeLeaf;
+					const leaf = this.app.workspace.activeLeaf;
 					if(!leaf)
 						return;
 					const currentView = leaf.view as MarkdownView;
@@ -101,7 +91,7 @@ export default class MyPlugin extends Plugin {
 		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
 			const view = this.app.workspace.activeLeaf.view as MarkdownView
 		});
-
+		
 		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 	}
 
