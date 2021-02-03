@@ -62,37 +62,37 @@ export default class MyPlugin extends Plugin {
 		this.addSettingTab(new SampleSettingTab(this.app, this));
 
 		this.registerCodeMirror((cm: CodeMirror.Editor) => {
-			cm.on("cursorActivity",(cm)=>{
-				var startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
-				//check if cursor have change block position
-				if(startLineOfCurrentBlock != this.startLineofCurrentBlock){
-					console.log("change block")
-					console.log("changed: "+this.changed)
-					//update the doc
-					if(this.changed){
-						const lines = cm.getValue().split("\n")
-						if(lines[this.startLineofCurrentBlock]){
-							if(!lines[this.startLineofCurrentBlock].startsWith("^")){
-								var timestamp = `^{created:${this.firstChangeTime},updated:${this.lastChangeTime}}\n`
-								cm.replaceRange(timestamp,CodeMirror.Pos(this.startLineofCurrentBlock,0))
-							}else{
-								lines[this.startLineofCurrentBlock] = lines[this.startLineofCurrentBlock]
-								.replace(/updated:[0-9]+-[0-9]+-[0-9]+ [0-9]+:[0-9]+/,`updated:${this.lastChangeTime}`)
-								const newContent = lines.join("\n")
-								const cursorPos = cm.getCursor()
-								cm.setValue(newContent)
-								cm.setCursor(cursorPos)
-							}
-						}
-						this.changed=false;
-					}
-					//reset all variables for the next block
-					this.firstChangeTime="-1"
-					this.lastChangeTime="-1"
-					this.startLineofCurrentBlock=this.getStartLineOfCurrentBlock(cm)
-					this.count=0;
-				}
-			})
+			// cm.on("cursorActivity",(cm)=>{
+			// 	var startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
+			// 	//check if cursor have change block position
+			// 	if(startLineOfCurrentBlock != this.startLineofCurrentBlock){
+			// 		console.log("change block")
+			// 		console.log("changed: "+this.changed)
+			// 		//update the doc
+			// 		if(this.changed){
+			// 			const lines = cm.getValue().split("\n")
+			// 			if(lines[this.startLineofCurrentBlock]){
+			// 				if(!lines[this.startLineofCurrentBlock].startsWith("^")){
+			// 					var timestamp = `^{created:${this.firstChangeTime},updated:${this.lastChangeTime}}\n`
+			// 					cm.replaceRange(timestamp,CodeMirror.Pos(this.startLineofCurrentBlock,0))
+			// 				}else{
+			// 					lines[this.startLineofCurrentBlock] = lines[this.startLineofCurrentBlock]
+			// 					.replace(/updated:[0-9]+-[0-9]+-[0-9]+ [0-9]+:[0-9]+/,`updated:${this.lastChangeTime}`)
+			// 					const newContent = lines.join("\n")
+			// 					const cursorPos = cm.getCursor()
+			// 					cm.setValue(newContent)
+			// 					cm.setCursor(cursorPos)
+			// 				}
+			// 			}
+			// 			this.changed=false;
+			// 		}
+			// 		//reset all variables for the next block
+			// 		this.firstChangeTime="-1"
+			// 		this.lastChangeTime="-1"
+			// 		this.startLineofCurrentBlock=this.getStartLineOfCurrentBlock(cm)
+			// 		this.count=0;
+			// 	}
+			// })
 			cm.on("change",(cm,co)=>{
 				if(this.count == 0){
 					this.count++;
@@ -102,7 +102,29 @@ export default class MyPlugin extends Plugin {
 					this.firstChangeTime= this.formatDate(new Date())
 				}
 				this.lastChangeTime = this.formatDate(new Date())
-				this.changed=true
+				
+				var startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
+				const lines = cm.getValue().split("\n")
+				if(lines[this.startLineofCurrentBlock]){
+								if(!lines[this.startLineofCurrentBlock].startsWith("^")){
+									var timestamp = `^{created:${this.firstChangeTime},updated:${this.lastChangeTime}}\n`
+									cm.replaceRange(timestamp,CodeMirror.Pos(this.startLineofCurrentBlock,0))
+								}else{
+									lines[this.startLineofCurrentBlock] = lines[this.startLineofCurrentBlock]
+									.replace(/updated:[0-9]+-[0-9]+-[0-9]+ [0-9]+:[0-9]+/,`updated:${this.lastChangeTime}`)
+									const newContent = lines.join("\n")
+									const cursorPos = cm.getCursor()
+									cm.setValue(newContent)
+									cm.setCursor(cursorPos)
+								}
+							}
+							// this.changed=false;
+						}
+						//reset all variables for the next block
+						this.firstChangeTime="-1"
+						this.lastChangeTime="-1"
+						this.startLineofCurrentBlock=this.getStartLineOfCurrentBlock(cm)
+						this.count=0;
 			})
 		});
 
