@@ -20,16 +20,13 @@ export default class MyPlugin extends Plugin {
 	currentFile:TFile
 	changed:boolean=false
 	count:number=0
-	// lines:String
-
+	
 	formatDate(date:Date):string{
-		// const tanggalMuatAkhirChangeThis = `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}`
 		var getYear:string = date.getFullYear().toString();
         var getMonth:string = date.getMonth()+1 < 10 ? `0${date.getMonth()+1}`:`${date.getMonth()+1}`;	
         var getDate:string = date.getDate() < 10 ? `0${date.getDate()}`:`${date.getDate()}`
 		var getHour:string = date.getHours()< 10 ? `0${date.getHours()}`:`${date.getHours()}`
 		var getMinute:string = date.getMinutes()< 10 ? `0${date.getMinutes()}`:`${date.getMinutes()}`
-
 		return  `${getYear}-${getMonth}-${getDate} ${getHour}:${getMinute}`
     }
 	
@@ -52,56 +49,27 @@ export default class MyPlugin extends Plugin {
 		console.log('loading plugin');
 		await this.loadSettings();
 
-
-		// this.addRibbonIcon('dice', 'Sample Plugin', () => {
-		// 	new Notice('This is a notice!');
-		// });
-
 		this.addRibbonIcon('dice', 'Encryption', () => {
-			// console.log("encrypt")
 			new EncryptionModal(this.app).open()
 		});
 
 		this.addRibbonIcon('dice', 'Decryption', () => {
-			// console.log("encrypt")
 			new DecryptionModal(this.app).open()
 		});
 
 		this.addStatusBarItem().setText('Status Bar Text');
 
-		this.addCommand({
-			id: 'open-sample-modal',
-			name: 'Open Sample Modal',
-			// callback: () => {
-			// 	console.log('Simple Callback');
-			// },
-			checkCallback: (checking: boolean) => {
-				let leaf = this.app.workspace.activeLeaf;
-				if (leaf) {
-					if (!checking) {
-						const view = leaf.view as MarkdownView
-						view.showSearch(true)
-						// new SampleModal(this.app).open();
-					}
-					return true;
-				}
-				return false;
-			}
-		});
-
 		this.addSettingTab(new SampleSettingTab(this.app, this));
 
 		this.registerCodeMirror((cm: CodeMirror.Editor) => {
 			cm.on("cursorActivity",(cm)=>{
-				console.log("cursor activity")
+				var startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
 				//check if cursor have change block position
-				if(this.changed){
-					var startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
-					console.log("old line block: "+this.startLineofCurrentBlock)
-					console.log("current line block: "+startLineOfCurrentBlock)
-					if(startLineOfCurrentBlock != this.startLineofCurrentBlock){
-						console.log("change block")
-						//update the doc
+				if(startLineOfCurrentBlock != this.startLineofCurrentBlock){
+					console.log("change block")
+					console.log("changed: "+this.changed)
+					//update the doc
+					if(this.changed){
 						const lines = cm.getValue().split("\n")
 						if(lines[this.startLineofCurrentBlock]){
 							if(!lines[this.startLineofCurrentBlock].startsWith("^")){
@@ -113,17 +81,16 @@ export default class MyPlugin extends Plugin {
 								const newContent = lines.join("\n")
 								const cursorPos = cm.getCursor()
 								cm.setValue(newContent)
-								this.count=0;
 								cm.setCursor(cursorPos)
 							}
-							// startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm)
 						}
-						//reset all variables for the next block
-						this.firstChangeTime="-1"
-						this.lastChangeTime="-1"
-						this.startLineofCurrentBlock=this.getStartLineOfCurrentBlock(cm)
 						this.changed=false;
 					}
+					//reset all variables for the next block
+					this.firstChangeTime="-1"
+					this.lastChangeTime="-1"
+					this.startLineofCurrentBlock=this.getStartLineOfCurrentBlock(cm)
+					this.count=0;
 				}
 			})
 			cm.on("change",(cm,co)=>{
@@ -132,10 +99,8 @@ export default class MyPlugin extends Plugin {
 					return;
 				}
 				if(this.firstChangeTime == "-1"){
-					// console.log("first change")
 					this.firstChangeTime= this.formatDate(new Date())
 				}
-				console.log("change")
 				this.lastChangeTime = this.formatDate(new Date())
 				this.changed=true
 			})
