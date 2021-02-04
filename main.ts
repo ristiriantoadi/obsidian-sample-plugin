@@ -53,9 +53,8 @@ export default class MyPlugin extends Plugin {
 						const currentView = leaf.view as MarkdownView;
         				const currentFile = currentView.file
 						this.app.vault.read(currentFile).then(data=>{
-							// console.log(data.match(/(?<=---\n)(.*)(?=---)/s)[0].toString())//metadata
 							var metadata = data.match(/(---)(.*)(---)/s)[0].toString();
-							var yaml = metadata.match(/(?<=---\n)(.*)(?=---)/s)[0].toString();
+							var yaml = metadata.match(/(?<=---\n)(.*)(?=\n---)/s)[0].toString();
 							var content  = data.split(metadata)[1].toString()
 							console.log(yaml)
 							console.log(content)
