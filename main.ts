@@ -50,47 +50,7 @@ export default class MyPlugin extends Plugin {
 	//this seems to be where the plugin started
 	async onload() {
 		console.log('loading plugin');
-		await this.loadSettings();
-
-
-		// this.addRibbonIcon('dice', 'Sample Plugin', () => {
-		// 	new Notice('This is a notice!');
-		// });
-
-		this.addRibbonIcon('dice', 'Encryption', () => {
-			// console.log("encrypt")
-			new EncryptionModal(this.app).open()
-		});
-
-		this.addRibbonIcon('dice', 'Decryption', () => {
-			// console.log("encrypt")
-			new DecryptionModal(this.app).open()
-		});
-
-		this.addStatusBarItem().setText('Status Bar Text');
-
-		this.addCommand({
-			id: 'open-sample-modal',
-			name: 'Open Sample Modal',
-			// callback: () => {
-			// 	console.log('Simple Callback');
-			// },
-			checkCallback: (checking: boolean) => {
-				let leaf = this.app.workspace.activeLeaf;
-				if (leaf) {
-					if (!checking) {
-						const view = leaf.view as MarkdownView
-						view.showSearch(true)
-						// new SampleModal(this.app).open();
-					}
-					return true;
-				}
-				return false;
-			}
-		});
-
 		this.addSettingTab(new SampleSettingTab(this.app, this));
-
 		this.registerCodeMirror((cm: CodeMirror.Editor) => {
 			cm.on("cursorActivity",(cm)=>{
 				console.log("cursor activity")
