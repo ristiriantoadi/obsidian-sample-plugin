@@ -49,40 +49,10 @@ export default class MyPlugin extends Plugin {
 	//this seems to be where the plugin started
 	async onload() {
 		console.log('loading plugin');
-
-		this.addCommand({
-			id: 'read-current-file',
-			name: 'Read current file',
-			// callback: () => {
-			// 	console.log('Simple Callback');
-			// },
-			checkCallback: (checking: boolean) => {
-				let leaf = this.app.workspace.activeLeaf;
-				if (leaf) {
-					if (!checking) {
-						const currentView = leaf.view as MarkdownView;
-        				const currentFile = currentView.file
-						this.app.vault.read(currentFile).then(data=>{
-							var metadata = data.match(/(---)(.*)(---)/s);
-							var yaml = ""
-							var content = data
-							if(metadata){
-								yaml = metadata[0].match(/(?<=---\n)(.*)(?=\n---)/s)[0];
-								content  = data.split(metadata[0])[1];
-							}
-							var yamlObject = YAML.parse(yaml)
-							console.log(yamlObject)
-							console.log(content)
-						})
-					}
-					return true;
-				}
-				return false;
-			}
-		});
-
 		this.registerCodeMirror((cm: CodeMirror.Editor) => {
+			cm.setOption("pollInterval",5000)
 			cm.on("change",(cm,co)=>{
+				console.log("change")
 				const changeTime = this.formatDate(new Date())
 				const startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
 				const data = cm.getValue()
@@ -145,11 +115,8 @@ export default class MyPlugin extends Plugin {
 							cm.setCursor(cursorPos)
 						})
 					}else{
-						console.log("called")
 						if(yamlObject){
-							console.log(yamlObject)
 							if(yamlObject.blockTimestamp){
-								console.log(yamlObject.blockTimestamp)
 								yamlObject.blockTimestamp = yamlObject.blockTimestamp.map(b=>{
 									if(b.id == lines[startLineOfCurrentBlock]){
 										b.modified=changeTime
