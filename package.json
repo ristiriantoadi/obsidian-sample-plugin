@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@types/crypto-js": "^4.0.1",
-    "crypto-js": "^4.0.0"
+    "crypto-js": "^4.0.0",
+    "yaml": "^1.10.0"
   }
 }

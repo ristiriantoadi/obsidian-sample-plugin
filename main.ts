@@ -1,7 +1,6 @@
 import { App, Modal, Notice, Plugin, PluginSettingTab, Setting,MarkdownView,normalizePath, TextComponent,ButtonComponent, TFile } from 'obsidian';
-import aes from 'crypto-js/aes';
-import CryptoJS from "crypto-js/core";
 import { start } from 'repl';
+import YAML from 'yaml'
 // import CodeMirror from "codemirror";
 interface MyPluginSettings {
 	mySetting: string;
@@ -53,15 +52,17 @@ export default class MyPlugin extends Plugin {
 						const currentView = leaf.view as MarkdownView;
         				const currentFile = currentView.file
 						this.app.vault.read(currentFile).then(data=>{
-							var metadata = data.match(/(---)(.*)(---)/s)[0].toString();
-							var yaml = metadata.match(/(?<=---\n)(.*)(?=\n---)/s)[0].toString();
-							var content  = data.split(metadata)[1].toString()
-							console.log(yaml)
+							var metadata = data.match(/(---)(.*)(---)/s);
+							var yaml = ""
+							var content = data
+							if(metadata){
+								yaml = metadata[0].match(/(?<=---\n)(.*)(?=\n---)/s)[0];
+								content  = data.split(metadata[0])[1];
+							}
+							var yamlObject = YAML.parse(yaml)
+							console.log(yamlObject)
 							console.log(content)
 						})
-						// const fileCache = this.app.metadataCache.getFileCache(currentFile)
-						// const frontMatterCache = fileCache.frontmatter
-						// console.log("frontMatterCache",frontMatterCache)
 					}
 					return true;
 				}
