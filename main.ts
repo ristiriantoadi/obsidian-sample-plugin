@@ -1,17 +1,10 @@
-import { App, Modal, Notice, Plugin, PluginSettingTab, Setting,MarkdownView,normalizePath, TextComponent,ButtonComponent, TFile } from 'obsidian';
+import {Plugin,MarkdownView, TFile} from 'obsidian';
 import { start } from 'repl';
 import YAML from 'yaml'
-// import CodeMirror from "codemirror";
-interface MyPluginSettings {
-	mySetting: string;
-}
-
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
-}
 
 export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+
+	globalTimeOut:any=null
 	
 	formatDate(date:Date):string{
 		var getYear:string = date.getFullYear().toString();
@@ -46,93 +39,103 @@ export default class MyPlugin extends Plugin {
 		return startLineOfCurrentBlock;
 	}
 
+	createNewBlock(yamlObject:any,changeTime:string,lines:string[],startLineOfCurrentBlock:number,cm:CodeMirror.Editor,currentFile:TFile){
+		var blockId = this.generateUniqueBlockId()
+		var noYaml=false
+		var noBlockTimestamp=false
+		if(yamlObject == undefined || yamlObject == null){
+			yamlObject = new Object()
+			noYaml=true;
+		}
+		if(yamlObject.blockTimestamp == undefined || 
+			yamlObject.blockTimestamp == null){
+			noBlockTimestamp=true
+			yamlObject.blockTimestamp = new Array()
+		}
+		yamlObject.blockTimestamp.push({id:blockId,created:changeTime,modified:changeTime})
+		var newContent=""
+		for(var n = 0;n<lines.length;n++){
+			if(n == startLineOfCurrentBlock){
+				newContent+=blockId+"\n"
+			}
+			newContent+=lines[n]+"\n";
+		}
+		var yamlString = YAML.stringify(yamlObject)//yamlString already include end newline
+		if(!noYaml){
+			//replace yaml front matter if it exist
+			newContent = newContent.replace(/(?<=---\n)(.*)(?=---)/s,yamlString)
+		}
+		else{
+			//prepend metadata to content
+			newContent = "---\n"+yamlString+"---\n"+newContent
+		}
+		const cursorPos = cm.getCursor()
+		this.app.vault.modify(currentFile,newContent).then(()=>{
+			var addedNewContentLength = 4//1 for the new block id in the content, 3 for metadata timestamp in the yaml 
+			if(noYaml){
+				addedNewContentLength += 2 // for the closing and opening line of the metadata
+			}
+			if(noBlockTimestamp){
+				addedNewContentLength +=1 //for the blocktimestamp key
+			}
+			cursorPos.line +=(addedNewContentLength) 
+			cm.setCursor(cursorPos)
+		})
+	}
+
+	updateBlock(yamlObject:any,changeTime:string,startLineOfCurrentBlock:number,lines:string[],currentFile:TFile){
+		if(yamlObject){
+			if(yamlObject.blockTimestamp){
+				yamlObject.blockTimestamp = yamlObject.blockTimestamp.map((b:any)=>{
+					if(b.id == lines[startLineOfCurrentBlock]){
+						b.modified=changeTime
+					}
+					return b
+				})
+				var yamlString = YAML.stringify(yamlObject)
+				var newContent = lines.join("\n")
+				newContent = newContent.replace(/(?<=---\n)(.*)(?=---)/s,yamlString)
+				this.app.vault.modify(currentFile,newContent) 
+			}
+		}
+	}
+
 	//this seems to be where the plugin started
 	async onload() {
 		console.log('loading plugin');
-<<<<<<< HEAD
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-=======
->>>>>>> c80840aba7983ccacf36b6810975d1d3666dcd72
 		this.registerCodeMirror((cm: CodeMirror.Editor) => {
 			cm.setOption("pollInterval",5000)
 			cm.on("change",(cm,co)=>{
-				console.log("change")
 				const changeTime = this.formatDate(new Date())
 				const startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
 				const data = cm.getValue()
 				const lines = data.split("\n")
+
+				if(startLineOfCurrentBlock == 0 && lines[startLineOfCurrentBlock].startsWith("---")){
+					//cursor is in the metadata
+					return;
+				}
+
 				if(lines[startLineOfCurrentBlock]){
+					//get yaml as object
 					const leaf = this.app.workspace.activeLeaf;
 					if(!leaf)
 						return;
 					const currentView = leaf.view as MarkdownView;
 					const currentFile = currentView.file
-					//get yaml as object
 					var metadata = data.match(/(---)(.*)(---)/s);
 					var yamlString = ""
 					if(metadata){
 						yamlString = metadata[0].match(/(?<=---\n)(.*)(?=\n---)/s)[0];
 					}
-					var yamlObject = YAML.parse(yamlString) 
-					
-					var newContent:string="";
+					var yamlObject = YAML.parse(yamlString)
+
 					if(!lines[startLineOfCurrentBlock].startsWith("^")){
-						var blockId = this.generateUniqueBlockId()
-						//create a new key in yaml
-						var noYaml=false
-						var noBlockTimestamp=false
-						if(yamlObject == undefined || yamlObject == null){
-							yamlObject = new Object()
-							noYaml=true;
-						}
-						if(yamlObject.blockTimestamp == undefined || 
-							yamlObject.blockTimestamp == null){
-							noBlockTimestamp=true
-							yamlObject.blockTimestamp = new Array()
-						}
-						yamlObject.blockTimestamp.push({id:blockId,created:changeTime,modified:changeTime})
-						for(var n = 0;n<lines.length;n++){
-							if(n == startLineOfCurrentBlock){
-								newContent+=blockId+"\n"
-							}
-							newContent+=lines[n]+"\n";
-						}
-						yamlString = YAML.stringify(yamlObject)//yamlString already include end newline
-						if(!noYaml){
-							//replace yaml front matter if it exist
-							newContent = newContent.replace(/(?<=---\n)(.*)(?=---)/s,yamlString)
-						}
-						else{
-							//prepend metadata to content
-							newContent = "---\n"+yamlString+"---\n"+newContent
-						}
-						const cursorPos = cm.getCursor()
-						this.app.vault.modify(currentFile,newContent).then(()=>{
-							var addedNewContentLength = 4//1 for the new block id in the content, 3 for metadata timestamp in the yaml 
-							if(noYaml){
-								addedNewContentLength += 2 // for the closing and opening line of the metadata
-							}
-							if(noBlockTimestamp){
-								addedNewContentLength +=1 //for the blocktimestamp key
-							}
-							cursorPos.line +=(addedNewContentLength) 
-							cm.setCursor(cursorPos)
-						})
+						if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
+						this.globalTimeOut = setTimeout(()=>this.createNewBlock(yamlObject,changeTime,lines,startLineOfCurrentBlock,cm,currentFile),200)
 					}else{
-						if(yamlObject){
-							if(yamlObject.blockTimestamp){
-								yamlObject.blockTimestamp = yamlObject.blockTimestamp.map(b=>{
-									if(b.id == lines[startLineOfCurrentBlock]){
-										b.modified=changeTime
-									}
-									return b
-								})
-								yamlString = YAML.stringify(yamlObject)
-								newContent = lines.join("\n")
-								newContent = newContent.replace(/(?<=---\n)(.*)(?=---)/s,yamlString)
-								this.app.vault.modify(currentFile,newContent)
-							}
-						}
+						if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
+						this.globalTimeOut = setTimeout(()=>this.updateBlock(yamlObject,changeTime,startLineOfCurrentBlock,lines,currentFile),200)
 					}
 				}
 			})
