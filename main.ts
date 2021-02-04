@@ -20,7 +20,11 @@ export default class MyPlugin extends Plugin {
 		var getHour:string = date.getHours()< 10 ? `0${date.getHours()}`:`${date.getHours()}`
 		var getMinute:string = date.getMinutes()< 10 ? `0${date.getMinutes()}`:`${date.getMinutes()}`
 		return  `${getYear}-${getMonth}-${getDate} ${getHour}:${getMinute}`
-    }
+	}
+	
+	generateUniqueBlockId(){
+		return '^' + Math.random().toString(36).substr(2, 9);
+	}
 	
 	getStartLineOfCurrentBlock(cm:CodeMirror.Editor):number{
 		const cursorLine = cm.getCursor().line
@@ -72,7 +76,7 @@ export default class MyPlugin extends Plugin {
 
 		this.registerCodeMirror((cm: CodeMirror.Editor) => {
 			cm.on("change",(cm,co)=>{
-				return;
+				// return;
 				const changeTime = this.formatDate(new Date())
 				const startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
 				const lines = cm.getValue().split("\n")
@@ -84,10 +88,11 @@ export default class MyPlugin extends Plugin {
 					const currentFile = currentView.file
 					var newContent:string="";
 					if(!lines[startLineOfCurrentBlock].startsWith("^")){
-						var timestamp = `^{created:${changeTime},updated:${changeTime}}\n`
+						// var timestamp = `^{created:${changeTime},updated:${changeTime}}\n`
+						var blockId = this.generateUniqueBlockId()
 						for(var n = 0;n<lines.length;n++){
 							if(n == startLineOfCurrentBlock){
-								newContent+=timestamp
+								newContent+=blockId+"\n"
 							}
 							newContent+=lines[n]+"\n";
 						}
@@ -97,10 +102,10 @@ export default class MyPlugin extends Plugin {
 							cm.setCursor(cursorPos)
 						})
 					}else{
-						lines[startLineOfCurrentBlock] = lines[startLineOfCurrentBlock]
-						.replace(/updated:[0-9]+-[0-9]+-[0-9]+ [0-9]+:[0-9]+/,`updated:${changeTime}`)
-						newContent = lines.join("\n")
-						this.app.vault.modify(currentFile,newContent)
+						// lines[startLineOfCurrentBlock] = lines[startLineOfCurrentBlock]
+						// .replace(/updated:[0-9]+-[0-9]+-[0-9]+ [0-9]+:[0-9]+/,`updated:${changeTime}`)
+						// newContent = lines.join("\n")
+						// this.app.vault.modify(currentFile,newContent)
 					}
 				}
 			})
