@@ -41,7 +41,7 @@ export default class MyPlugin extends Plugin {
 		return startLineOfCurrentBlock;
 	}
 
-	createNewBlock(yamlObject:any,changeTime:string,lines:string[],startLineOfCurrentBlock:number,cm:CodeMirror.Editor,currentFile:TFile){
+	createNewBlock(yamlObject:any,changeTime:string,lines:string[],startLineOfCurrentBlock:number,cm:CodeMirror.Editor,currentFile:TFile,co:CodeMirror.EditorChangeLinkedList){
 		console.log("create new block")
 		var blockId = this.generateUniqueBlockId()
 		var noYaml=false
@@ -73,7 +73,7 @@ export default class MyPlugin extends Plugin {
 			newContent = "---\n"+yamlString+"---\n"+newContent
 		}
 		this.modifiedThroughPlugin=true
-		const cursorPos = cm.getCursor() 
+		const cursorPos = cm.getCursor()
 		this.app.vault.modify(currentFile,newContent).then(()=>{
 			//update cursor position
 			var addedNewContentLength = 4//1 for the new block id in the content, 3 for metadata timestamp in the yaml 
@@ -88,7 +88,7 @@ export default class MyPlugin extends Plugin {
 		})
 	}
 
-	updateBlock(yamlObject:any,changeTime:string,startLineOfCurrentBlock:number,lines:string[],currentFile:TFile){
+	updateBlock(yamlObject:any,changeTime:string,startLineOfCurrentBlock:number,lines:string[],currentFile:TFile,cm:CodeMirror.Editor,co:CodeMirror.EditorChangeLinkedList){
 		if(yamlObject){
 			if(yamlObject.blockTimestamp){
 				console.log("update a block")
@@ -102,13 +102,17 @@ export default class MyPlugin extends Plugin {
 				var newContent = lines.join("\n")
 				newContent = newContent.replace(/(?<=---\n)(.*)(?=---)/s,yamlString)
 				this.modifiedThroughPlugin=true
+				//update cursor pos
+				const cursorPos = cm.getCursor()
+				console.log(cursorPos)
 				this.app.vault.modify(currentFile,newContent).then(()=>{
+					cm.setCursor(cursorPos)
 				}) 
 			}
 		}
 	}
 
-	removeBlock(startLineOfCurrentBlock:number,lines:string[],yamlObject:any,currentFile:TFile,cm:CodeMirror.Editor,id:string){
+	removeBlock(startLineOfCurrentBlock:number,lines:string[],yamlObject:any,currentFile:TFile,cm:CodeMirror.Editor,id:string,blockIdDeleted:boolean,co:CodeMirror.EditorChangeLinkedList){
 		if(yamlObject){
 			if(yamlObject.blockTimestamp){
 				console.log("remove a block")
@@ -116,11 +120,15 @@ export default class MyPlugin extends Plugin {
 					if(b.id != id)
 						return b;
 				})
-				//update the new content to  not include the current block id
+				//update the new content
 				var newContent=""
-				for(var n = 0;n<lines.length;n++){
-					if(n != startLineOfCurrentBlock){
-						newContent+=lines[n]+"\n";	
+				if(blockIdDeleted){
+					newContent=lines.join("\n")
+				}else{
+					for(var n = 0;n<lines.length;n++){
+						if(n != startLineOfCurrentBlock){
+							newContent+=lines[n]+"\n";	
+						}
 					}
 				}
 				//update the metadata
@@ -128,10 +136,13 @@ export default class MyPlugin extends Plugin {
 				newContent = newContent.replace(/(?<=---\n)(.*)(?=---)/s,yamlString)
 				//update cursor position
 				const position = cm.getCursor()
-				position.line -=4
+				var removedLines=4
+				if(blockIdDeleted)
+					removedLines=3
+				position.line -=removedLines
 				this.modifiedThroughPlugin=true
 				this.app.vault.modify(currentFile,newContent).then(()=>{
-					cm.setCursor(position.line) 
+					cm.setCursor(position) 
 				})
 			}
 		}
@@ -142,20 +153,14 @@ export default class MyPlugin extends Plugin {
 		console.log('loading plugin');
 		this.registerCodeMirror((cm: CodeMirror.Editor) => {
 			cm.on("change",(cm,co)=>{
-
-				if(this.modifiedThroughPlugin){
-					this.modifiedThroughPlugin=false;
-					return;
-				}
-
 				const changeTime = this.formatDate(new Date())
-				const startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
-				const data = cm.getValue()
-				const lines = data.split("\n")
-				//get yaml as object
+				//initiate variable and get yaml as object
 				const leaf = this.app.workspace.activeLeaf;
 				if(!leaf)
 					return;
+				const startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
+				const data = cm.getValue()
+				const lines = data.split("\n")
 				const currentView = leaf.view as MarkdownView;
 				const currentFile = currentView.file
 				var metadata = data.match(/(---)(.*)(---)/s);
@@ -165,14 +170,39 @@ export default class MyPlugin extends Plugin {
 				}
 				var yamlObject = YAML.parse(yamlString)
 
+				//plugin change the content, adding metadata or removing metadata, return
+				if(this.modifiedThroughPlugin){
+					this.modifiedThroughPlugin=false;
+					return;
+				}
+
+				console.log(co)
+
+				//check if a character is changed
+				//or user simply press enter or delete
+				//empty character, return
+				var characterChanged=false
+				co.removed.filter(c=>{
+					if(c != ""){
+						characterChanged=true
+					}
+				})
+				co.text.filter(c=>{
+					if(c!=""){
+						characterChanged=true
+					}
+				})
+				if(!characterChanged){
+					return
+				}
+
+				//cursor is in the metadata, return
 				if(startLineOfCurrentBlock == 0 && lines[startLineOfCurrentBlock].startsWith("---")){
-					//cursor is in the metadata
 					return;
 				}
 
 				//user removed a block
-				if(lines[co.from.line] == ''){
-					// this.removeBlock(co,startLineOfCurrentBlock,lines,yamlObject,currentFile,cm)
+				if(lines[co.from.line] == '' && co.origin=="+delete"){
 					var removed = co.removed.filter(c=>{
 						if(c.startsWith("^")){
 							return c
@@ -181,13 +211,15 @@ export default class MyPlugin extends Plugin {
 					var id:string
 					if(removed.length>0){
 						id = removed[0]
+						this.removeBlock(startLineOfCurrentBlock,lines,yamlObject,currentFile,cm,id,true,co)
 						if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
-						this.globalTimeOut = setTimeout(()=>this.removeBlock(startLineOfCurrentBlock,lines,yamlObject,currentFile,cm,id),500)
+						// this.globalTimeOut = setTimeout(()=>this.removeBlock(startLineOfCurrentBlock,lines,yamlObject,currentFile,cm,id),500)
 						return;
 					}else if(startLineOfCurrentBlock == co.from.line-1){
 						id = lines[startLineOfCurrentBlock]
+						this.removeBlock(startLineOfCurrentBlock,lines,yamlObject,currentFile,cm,id,false,co)
 						if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
-						this.globalTimeOut = setTimeout(()=>this.removeBlock(startLineOfCurrentBlock,lines,yamlObject,currentFile,cm,id),500)
+						// this.globalTimeOut = setTimeout(()=>this.removeBlock(startLineOfCurrentBlock,lines,yamlObject,currentFile,cm,id),500)
 						return;
 					}
 				}
@@ -196,10 +228,10 @@ export default class MyPlugin extends Plugin {
 				if(lines[startLineOfCurrentBlock]){
 					if(!lines[startLineOfCurrentBlock].startsWith("^")){
 						if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
-						this.globalTimeOut = setTimeout(()=>this.createNewBlock(yamlObject,changeTime,lines,startLineOfCurrentBlock,cm,currentFile),500)
+						this.globalTimeOut = setTimeout(()=>this.createNewBlock(yamlObject,changeTime,lines,startLineOfCurrentBlock,cm,currentFile,co),500)
 					}else{
 						if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
-						this.globalTimeOut = setTimeout(()=>this.updateBlock(yamlObject,changeTime,startLineOfCurrentBlock,lines,currentFile),500)
+						this.globalTimeOut = setTimeout(()=>this.updateBlock(yamlObject,changeTime,startLineOfCurrentBlock,lines,currentFile,cm,co),300)
 					}
 				}
 			})
