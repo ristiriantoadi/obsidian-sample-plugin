@@ -61,12 +61,9 @@ export default class MyPlugin extends Plugin {
 				//check the line below the matched line
 				//if it's not an empty line then the block still exist 
 				if(lines[n+1] != ''){
-					if(lines[n-1] == ''  || lines[n-1] == '---' || lines[n-1] == '```'){
+					if(n == 0 || (n>0 && (lines[n-1] == ''  || lines[n-1] == '---' || lines[n-1] == '```'))){
 						return true
 					}
-					// if(lines[n-1] == '' || lines[n-1] == '---' || lines[n-1] == '```'){
-					// 	return true;
-					// }
 				}
 			}
 		}
@@ -81,7 +78,9 @@ export default class MyPlugin extends Plugin {
 				newContent+=lines[n]+"\n"
 			}else{
 				this.updateTempMetadata(n,-1)
-				this.linesChanged+=-1
+				if(n<=this.cm.getCursor().line)
+					this.linesChanged+=-1
+				
 			}
 		}
 		this.data = newContent
@@ -156,7 +155,8 @@ export default class MyPlugin extends Plugin {
 						if(n == blockLine){
 							newContent+=blockId+"\n"
 							this.updateTempMetadata(n,1)
-							this.linesChanged+=1
+							if(n<=this.cm.getCursor().line)
+								this.linesChanged+=1
 						}
 						newContent+=lines[n]+"\n";
 					}
@@ -207,13 +207,14 @@ export default class MyPlugin extends Plugin {
 		//update cursor position
 		const cursorPos = this.cm.getCursor()
 		cursorPos.line += this.linesChanged
-		console.log("lines changed",this.linesChanged)
+		// console.log("lines changed",this.linesChanged)
 		this.app.vault.modify(currentFile,this.data).then(()=>{
 			//set cursor
 			this.cm.setCursor(cursorPos)
 			// console.log(this.cm.getCursor())
 			this.linesChanged=0
 			this.blockMetadata = new Array()
+			// console.log("modified")
 		})
 	}
 
@@ -298,23 +299,25 @@ export default class MyPlugin extends Plugin {
 				//user removed a block
 				if(lines[startLineOfCurrentBlock] == '' && co.origin=="+delete"){
 					console.log("user removed a block")
+					if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
+					this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),5000)
 					this.lastCursorPosition = cm.getCursor()
 					this.lastLineLength=currentLength
 					return;
 				}
 				
 				//update temp metadata
-				var blockExist=false
-				this.blockMetadata = this.blockMetadata.map(bm=>{
-					if(bm.lineNumber == startLineOfCurrentBlock){
-						bm.firstLineofBlock=lines[startLineOfCurrentBlock]
-						bm.timestamp = changeTime
-						blockExist=true
-					}
-					return bm
-				})
-				if(!blockExist){
-					if(lines[startLineOfCurrentBlock] != ""){
+				if(lines[startLineOfCurrentBlock] != ""){
+					var blockExist=false
+					this.blockMetadata = this.blockMetadata.map(bm=>{
+						if(bm.lineNumber == startLineOfCurrentBlock){
+							bm.firstLineofBlock=lines[startLineOfCurrentBlock]
+							bm.timestamp = changeTime
+							blockExist=true
+						}
+						return bm
+					})
+					if(!blockExist){
 						this.blockMetadata.push({
 							firstLineofBlock:lines[startLineOfCurrentBlock],
 							timestamp:changeTime,
@@ -322,7 +325,8 @@ export default class MyPlugin extends Plugin {
 						})
 					}
 				}
-				console.log("block metadata",this.blockMetadata)
+				
+				// console.log("block metadata",this.blockMetadata)
 
 				const leaf = this.app.workspace.activeLeaf;
 				if(!leaf)
