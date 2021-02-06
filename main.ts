@@ -138,7 +138,6 @@ export default class MyPlugin extends Plugin {
 				this.modifiedThroughPlugin=true
 				//update cursor pos
 				const cursorPos = cm.getCursor()
-				console.log(cursorPos)
 				this.app.vault.modify(currentFile,newContent).then(()=>{
 					cm.setCursor(cursorPos)
 				}) 
@@ -189,7 +188,7 @@ export default class MyPlugin extends Plugin {
 			if(lines[n] == blockId){
 				//check the line below the matched line
 				//if it's not an empty line then the block still exist 
-				if(lines[n] != ''){
+				if(lines[n+1] != ''){
 					return true
 				}
 			}
@@ -216,7 +215,7 @@ export default class MyPlugin extends Plugin {
 		const lines = this.data.split("\n")
 		for(var n = 0;n<lines.length;n++){
 			if(lines[n] == bm.firstLineofBlock && n==bm.lineNumber){
-				if(n == 0 || (n>0 && lines[n-1] == ''))
+				if(n == 0 || (n>0 && (lines[n-1] == '' || lines[n-1] == '---' || lines[n-1] == '```')))
 					return true
 			}
 		}
@@ -315,8 +314,8 @@ export default class MyPlugin extends Plugin {
 		if(yamlObject){	
 			noYaml=false
 		}
-		yamlObject = this.updateYamlObject(yamlObject)//this change this.data, this use linenumber
 		yamlObject=this.cleanMetadata()//this change this.data
+		yamlObject = this.updateYamlObject(yamlObject)//this change this.data, this use linenumber
 		//update the content
 		var yamlString = YAML.stringify(yamlObject)//yamlString already include end newline
 		if(!noYaml){
@@ -331,9 +330,11 @@ export default class MyPlugin extends Plugin {
 		//update cursor position
 		const cursorPos = this.cm.getCursor()
 		cursorPos.line += this.linesChanged
+		// console.log("cursorpos",cursorPos)
 		this.app.vault.modify(currentFile,this.data).then(()=>{
 			//set cursor
 			this.cm.setCursor(cursorPos)
+			// console.log(this.cm.getCursor())
 			this.linesChanged=0
 			this.blockMetadata = new Array()
 		})
@@ -377,7 +378,6 @@ export default class MyPlugin extends Plugin {
 				//check if doc length change
 				//update tempMetadata if so
 				var different =currentLength - this.lastLineLength
-				console.log("different",different)
 				if(different != 0){
 					var lineOrigin
 					if(co.origin=="+delete"){
@@ -394,22 +394,22 @@ export default class MyPlugin extends Plugin {
 				//check if a character is changed
 				//or user simply press enter or delete
 				//empty character, return
-				var characterChanged=false
-				co.removed.forEach(c=>{
-					if(c != ""){
-						characterChanged=true
-					}
-				})
-				co.text.forEach(c=>{
-					if(c!=""){
-						characterChanged=true
-					}
-				})
-				if(!characterChanged){
-					this.lastCursorPosition = cm.getCursor()
-					this.lastLineLength=currentLength
-					return
-				}
+				// var characterChanged=false
+				// co.removed.forEach(c=>{
+				// 	if(c != ""){
+				// 		characterChanged=true
+				// 	}
+				// })
+				// co.text.forEach(c=>{
+				// 	if(c!=""){
+				// 		characterChanged=true
+				// 	}
+				// })
+				// if(!characterChanged){
+				// 	this.lastCursorPosition = cm.getCursor()
+				// 	this.lastLineLength=currentLength
+				// 	return
+				// }
 
 				//cursor is in the metadata, return
 				if(startLineOfCurrentBlock == 0 && lines[startLineOfCurrentBlock].startsWith("---")){
@@ -436,24 +436,20 @@ export default class MyPlugin extends Plugin {
 					return bm
 				})
 				if(!blockExist){
-					console.log("called")
 					this.blockMetadata.push({
 						firstLineofBlock:lines[startLineOfCurrentBlock],
 						timestamp:changeTime,
 						lineNumber:startLineOfCurrentBlock
 					})
-					console.log("under called",this.blockMetadata)
 				}
-				console.log("startlineofcurrentblock",startLineOfCurrentBlock)
-				console.log(this.blockMetadata)
 
 				const leaf = this.app.workspace.activeLeaf;
 				if(!leaf)
 					return;
 				const currentView = leaf.view as MarkdownView;
 				const currentFile = currentView.file
-				// if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
-				// this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),500)
+				if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
+				this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),500)
 
 				//set last cursor position and last line length
 				//to the current value
