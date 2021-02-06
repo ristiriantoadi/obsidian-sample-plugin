@@ -300,7 +300,7 @@ export default class MyPlugin extends Plugin {
 				if(lines[startLineOfCurrentBlock] == '' && co.origin=="+delete"){
 					console.log("user removed a block")
 					if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
-					this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),5000)
+					this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),1000)
 					this.lastCursorPosition = cm.getCursor()
 					this.lastLineLength=currentLength
 					return;
@@ -334,7 +334,7 @@ export default class MyPlugin extends Plugin {
 				const currentView = leaf.view as MarkdownView;
 				const currentFile = currentView.file
 				if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
-				this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),5000)
+				this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),1000)
 
 				//set last cursor position and last line length
 				//to the current value
