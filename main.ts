@@ -54,134 +54,6 @@ export default class MyPlugin extends Plugin {
 		return startLineOfCurrentBlock;
 	}
 
-	getEndLineOfCurrentBlock(cm:CodeMirror.Editor){
-		const cursorLine = cm.getCursor().line
-		const lines = this.data.split("\n")
-		//get end of block
-		var currentLine = cursorLine;
-		var endLineOfCurrentBlock = currentLine;
-		while(currentLine<lines.length){
-			// if(lines[currentLine] == '' && currentLine != cursorLine)
-			// 	break
-			endLineOfCurrentBlock=currentLine;
-			if(lines[currentLine] == "")
-				break
-			if(lines[currentLine] == '---')
-				break
-			if(lines[currentLine].startsWith("```"))
-				break
-			currentLine++;
-		}
-		return endLineOfCurrentBlock;
-	}
-
-	createNewBlock(yamlObject:any,changeTime:string,lines:string[],startLineOfCurrentBlock:number,cm:CodeMirror.Editor,currentFile:TFile,co:CodeMirror.EditorChangeLinkedList){
-		console.log("create new block")
-		var blockId = this.generateUniqueBlockId()
-		var noYaml=false
-		var noBlockTimestamp=false
-		if(yamlObject == undefined || yamlObject == null){
-			yamlObject = new Object()
-			noYaml=true;
-		}
-		if(yamlObject.blockTimestamp == undefined || 
-			yamlObject.blockTimestamp == null){
-			noBlockTimestamp=true
-			yamlObject.blockTimestamp = new Array()
-		}
-		yamlObject.blockTimestamp.push({id:blockId,created:changeTime,modified:changeTime})
-		var newContent=""
-		for(var n = 0;n<lines.length;n++){
-			if(n == startLineOfCurrentBlock){
-				newContent+=blockId+"\n"
-			}
-			newContent+=lines[n]+"\n";
-		}
-		var yamlString = YAML.stringify(yamlObject)//yamlString already include end newline
-		if(!noYaml){
-			//replace yaml front matter if it exist
-			newContent = newContent.replace(/(?<=---\n)(.*)(?=---)/s,yamlString)
-		}
-		else{
-			//prepend metadata to content
-			newContent = "---\n"+yamlString+"---\n"+newContent
-		}
-		this.modifiedThroughPlugin=true
-		const cursorPos = cm.getCursor()
-		this.app.vault.modify(currentFile,newContent).then(()=>{
-			//update cursor position
-			var addedNewContentLength = 4//1 for the new block id in the content, 3 for metadata timestamp in the yaml 
-			if(noYaml){
-				addedNewContentLength += 2 // for the closing and opening line of the metadata
-			}
-			if(noBlockTimestamp){
-				addedNewContentLength +=1 //for the blocktimestamp key
-			}
-			cursorPos.line +=(addedNewContentLength)
-			cm.setCursor(cursorPos)
-		})
-	}
-
-	updateBlock(yamlObject:any,changeTime:string,startLineOfCurrentBlock:number,lines:string[],currentFile:TFile,cm:CodeMirror.Editor,co:CodeMirror.EditorChangeLinkedList){
-		if(yamlObject){
-			if(yamlObject.blockTimestamp){
-				console.log("update a block")
-				yamlObject.blockTimestamp = yamlObject.blockTimestamp.map((b:any)=>{
-					if(b.id == lines[startLineOfCurrentBlock]){
-						b.modified=changeTime
-					}
-					return b
-				})
-				var yamlString = YAML.stringify(yamlObject)
-				var newContent = lines.join("\n")
-				newContent = newContent.replace(/(?<=---\n)(.*)(?=---)/s,yamlString)
-				this.modifiedThroughPlugin=true
-				//update cursor pos
-				const cursorPos = cm.getCursor()
-				this.app.vault.modify(currentFile,newContent).then(()=>{
-					cm.setCursor(cursorPos)
-				}) 
-			}
-		}
-	}
-
-	removeBlock(startLineOfCurrentBlock:number,lines:string[],yamlObject:any,currentFile:TFile,cm:CodeMirror.Editor,id:string,blockIdDeleted:boolean,co:CodeMirror.EditorChangeLinkedList){
-		if(yamlObject){
-			if(yamlObject.blockTimestamp){
-				console.log("remove a block")
-				yamlObject.blockTimestamp = yamlObject.blockTimestamp.filter((b:any)=>{
-					if(b.id != id)
-						return b;
-				})
-				//update the new content
-				var newContent=""
-				if(blockIdDeleted){
-					newContent=lines.join("\n")
-				}else{
-					for(var n = 0;n<lines.length;n++){
-						if(n != startLineOfCurrentBlock){
-							newContent+=lines[n]+"\n";	
-						}
-					}
-				}
-				//update the metadata
-				var yamlString = YAML.stringify(yamlObject)
-				newContent = newContent.replace(/(?<=---\n)(.*)(?=---)/s,yamlString)
-				//update cursor position
-				const position = cm.getCursor()
-				var removedLines=4
-				if(blockIdDeleted)
-					removedLines=3
-				position.line -=removedLines
-				this.modifiedThroughPlugin=true
-				this.app.vault.modify(currentFile,newContent).then(()=>{
-					cm.setCursor(position) 
-
-				})
-			}
-		}
-	}
-
 	isBlockExist(blockId:string){
 		const lines = this.data.split("\n")
 		for(var n = 0;n<lines.length;n++){
@@ -189,7 +61,12 @@ export default class MyPlugin extends Plugin {
 				//check the line below the matched line
 				//if it's not an empty line then the block still exist 
 				if(lines[n+1] != ''){
-					return true
+					if(lines[n-1] == ''  || lines[n-1] == '---' || lines[n-1] == '```'){
+						return true
+					}
+					// if(lines[n-1] == '' || lines[n-1] == '---' || lines[n-1] == '```'){
+					// 	return true;
+					// }
 				}
 			}
 		}
@@ -330,7 +207,7 @@ export default class MyPlugin extends Plugin {
 		//update cursor position
 		const cursorPos = this.cm.getCursor()
 		cursorPos.line += this.linesChanged
-		// console.log("cursorpos",cursorPos)
+		console.log("lines changed",this.linesChanged)
 		this.app.vault.modify(currentFile,this.data).then(()=>{
 			//set cursor
 			this.cm.setCursor(cursorPos)
@@ -420,6 +297,7 @@ export default class MyPlugin extends Plugin {
 
 				//user removed a block
 				if(lines[startLineOfCurrentBlock] == '' && co.origin=="+delete"){
+					console.log("user removed a block")
 					this.lastCursorPosition = cm.getCursor()
 					this.lastLineLength=currentLength
 					return;
@@ -428,20 +306,23 @@ export default class MyPlugin extends Plugin {
 				//update temp metadata
 				var blockExist=false
 				this.blockMetadata = this.blockMetadata.map(bm=>{
-					if(bm.firstLineofBlock == lines[startLineOfCurrentBlock] && bm.lineNumber == startLineOfCurrentBlock){
-						// bm.firstLineofBlock=lines[startLineOfCurrentBlock]
+					if(bm.lineNumber == startLineOfCurrentBlock){
+						bm.firstLineofBlock=lines[startLineOfCurrentBlock]
 						bm.timestamp = changeTime
 						blockExist=true
 					}
 					return bm
 				})
 				if(!blockExist){
-					this.blockMetadata.push({
-						firstLineofBlock:lines[startLineOfCurrentBlock],
-						timestamp:changeTime,
-						lineNumber:startLineOfCurrentBlock
-					})
+					if(lines[startLineOfCurrentBlock] != ""){
+						this.blockMetadata.push({
+							firstLineofBlock:lines[startLineOfCurrentBlock],
+							timestamp:changeTime,
+							lineNumber:startLineOfCurrentBlock
+						})
+					}
 				}
+				console.log("block metadata",this.blockMetadata)
 
 				const leaf = this.app.workspace.activeLeaf;
 				if(!leaf)
@@ -449,7 +330,7 @@ export default class MyPlugin extends Plugin {
 				const currentView = leaf.view as MarkdownView;
 				const currentFile = currentView.file
 				if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
-				this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),500)
+				this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),5000)
 
 				//set last cursor position and last line length
 				//to the current value
