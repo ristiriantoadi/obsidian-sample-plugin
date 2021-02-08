@@ -10,14 +10,12 @@ export default class MyPlugin extends Plugin {
 	globalTimeOut:any=null
 	modifiedThroughPlugin=false
 	blockMetadata:IBlockMetadata[] = new Array()
-	data:string
 	currentFile:TFile
+	data:string
 	lastCursorPosition = new CodeMirror.Pos(0,0)
 	cm:CodeMirror.Editor
 	lastLineLength:number=1
 	linesChanged:number=0
-	firstChange=false
-
 	
 	formatDate(date:Date):string{
 		var getYear:string = date.getFullYear().toString();
@@ -61,7 +59,7 @@ export default class MyPlugin extends Plugin {
 				break
 			if(lines[currentLine] == "```" && currentLine != cursorLine)
 				break
-			if(lines[currentLine].startsWith('```')){
+			if(lines[currentLine].startsWith('```') && lines[currentLine] != "```"){
 				if(lines[currentLine-1].startsWith('^'))	
 					return currentLine-1
 				return currentLine
@@ -81,6 +79,8 @@ export default class MyPlugin extends Plugin {
 				//check the line below the matched line
 				//if it's not an empty line then the block still exist 
 				if(lines[n+1] != ''){
+					//check the line above
+					//if it's an empty line, ---, or ``` then it must be the start of block
 					if(n == 0 || (n>0 && (lines[n-1] == ''  || lines[n-1] == '---' || lines[n-1] == '```'))){
 						return true
 					}
@@ -100,20 +100,19 @@ export default class MyPlugin extends Plugin {
 				this.updateTempMetadata(n,-1)
 				if(n<this.cm.getCursor().line)
 					this.linesChanged+=-1
-				
 			}
 		}
 		this.data = newContent
 	}
 
 	isBlockMetadataStillValid(bm:any){
-		//check if the bm still valid
+		//check if the temp block metadata still valid
+		//it's still valid if the line above is either empty line, ---, or ```, or it's the first line
 		const lines = this.data.split("\n")
-		for(var n = 0;n<lines.length;n++){
-			if(lines[n] == bm.firstLineofBlock && n==bm.lineNumber){
-				if(n == 0 || (n>0 && (lines[n-1] == '' || lines[n-1] == '---' || lines[n-1] == '```')))
-					return true
-			}
+		if(lines[bm.lineNumber] == bm.firstLineofBlock){
+			if(bm.lineNumber == 0 || (bm.lineNumber>0 && (lines[bm.lineNumber-1] == '' 
+			|| lines[bm.lineNumber-1] == '---' || lines[bm.lineNumber-1] == '```')))
+				return true
 		}
 		return false;
 	}
@@ -142,6 +141,7 @@ export default class MyPlugin extends Plugin {
 	}
 
 	updateYamlObject(yamlObject:any){
+		var cursorPosition = this.cm.getCursor().line
 		this.blockMetadata.forEach(bm=>{
 			//check if the bm still valid
 			if(this.isBlockMetadataStillValid(bm)){//this use line number
@@ -168,10 +168,16 @@ export default class MyPlugin extends Plugin {
 					var newContent=""
 					for(var n = 0;n<lines.length;n++){
 						if(n == blockLine){
+							console.log("start of block",lines[n])
 							newContent+=blockId+"\n"
-							this.updateTempMetadata(n,1)
-							if(n<=this.cm.getCursor().line)
+							console.log("n",n)
+							console.log("cursor",this.cm.getCursor().line)
+							if(n<=cursorPosition{
 								this.linesChanged+=1
+								cursorPosition+=1
+								console.log("lines changed added 1")
+							}
+							this.updateTempMetadata(n,1)
 						}
 						newContent+=lines[n]+"\n";
 					}
@@ -221,13 +227,11 @@ export default class MyPlugin extends Plugin {
 		}
 		yamlObject=this.cleanMetadata()
 		yamlObject = this.updateYamlObject(yamlObject)
-		// yamlObject=this.cleanMetadata()
 		//update the content
 		if(yamlObject){
 			var yamlString = YAML.stringify(yamlObject)//yamlString already include end newline
 			if(!noYaml){
 				//replace yaml front matter if it exist
-				// this.data = this.data.replace(/(?<=---\n)(.*)(?=---)/s,yamlString)
 				this.replaceYaml(yamlString)
 			}
 			else{
@@ -238,6 +242,7 @@ export default class MyPlugin extends Plugin {
 			//update cursor position
 			const cursorPos = this.cm.getCursor()
 			cursorPos.line += this.linesChanged
+			console.log("lines changed",this.linesChanged)
 			await this.app.vault.modify(currentFile,this.data)
 			this.cm.setCursor(cursorPos)
 			this.linesChanged=0
@@ -298,26 +303,6 @@ export default class MyPlugin extends Plugin {
 				}
 				this.updateTempMetadata(lineOrigin.line,different)
 			}
-
-			//check if a character is changed
-			//or user simply press enter or delete
-			//empty character, return
-			// var characterChanged=false
-			// co.removed.forEach(c=>{
-			// 	if(c != ""){
-			// 		characterChanged=true
-			// 	}
-			// })
-			// co.text.forEach(c=>{
-			// 	if(c!=""){
-			// 		characterChanged=true
-			// 	}
-			// })
-			// if(!characterChanged){
-			// 	this.lastCursorPosition = cm.getCursor()
-			// 	this.lastLineLength=currentLength
-			// 	return
-			// }
 
 			//cursor is in the metadata, return
 			if(startLineOfCurrentBlock == 0 && lines[startLineOfCurrentBlock].startsWith("---")){
