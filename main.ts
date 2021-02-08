@@ -256,121 +256,132 @@ export default class MyPlugin extends Plugin {
 		}
 	}
 
+	listenForCursorPosition(cm:CodeMirror.Editor){
+		this.lastCursorPosition = cm.getCursor()
+		if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
+		if(this.currentFile != null || this.currentFile != undefined)
+			this.globalTimeOut = setTimeout(()=>this.updateDoc(this.currentFile),1000)
+	}
+	
+	async handleChange(cm:CodeMirror.Editor,co:CodeMirror.EditorChangeLinkedList){
+		const leaf = this.app.workspace.activeLeaf;
+			if(!leaf)
+				return;
+			const currentView = leaf.view as MarkdownView;
+			const currentFile = currentView.file
+			this.currentFile = currentFile
+			this.data = cm.getValue()
+			const changeTime = this.formatDate(new Date())
+			const startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);				
+			const lines = this.data.split("\n")
+			var currentLength = lines.length
+
+			if(this.modifiedThroughPlugin){
+				this.modifiedThroughPlugin=false;
+				this.lastCursorPosition = cm.getCursor()
+				this.lastLineLength=currentLength
+				return
+			}
+
+			//check if doc length change
+			//update tempMetadata if so
+			var different =currentLength - this.lastLineLength
+			if(different != 0){
+				var lineOrigin
+				if(co.origin=="+delete"){
+					lineOrigin = co.from
+				}else{
+					lineOrigin = this.lastCursorPosition
+				}
+				if(lineOrigin.ch>0){
+					lineOrigin.line+=1
+				}
+				this.updateTempMetadata(lineOrigin.line,different)
+			}
+
+			//check if a character is changed
+			//or user simply press enter or delete
+			//empty character, return
+			// var characterChanged=false
+			// co.removed.forEach(c=>{
+			// 	if(c != ""){
+			// 		characterChanged=true
+			// 	}
+			// })
+			// co.text.forEach(c=>{
+			// 	if(c!=""){
+			// 		characterChanged=true
+			// 	}
+			// })
+			// if(!characterChanged){
+			// 	this.lastCursorPosition = cm.getCursor()
+			// 	this.lastLineLength=currentLength
+			// 	return
+			// }
+
+			//cursor is in the metadata, return
+			if(startLineOfCurrentBlock == 0 && lines[startLineOfCurrentBlock].startsWith("---")){
+				this.lastCursorPosition = cm.getCursor()
+				this.lastLineLength=currentLength
+				return;
+			}
+
+			//user removed a block
+			if(lines[startLineOfCurrentBlock] == '' && co.origin=="+delete"){
+				if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
+				this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),2000)
+				this.lastCursorPosition = cm.getCursor()
+				this.lastLineLength=currentLength
+				return;
+			}
+			
+			//update temp metadata
+			if(lines[startLineOfCurrentBlock] != "" && lines[startLineOfCurrentBlock] != '---'){
+				var blockExist=false
+				this.blockMetadata = this.blockMetadata.map(bm=>{
+					if(bm.lineNumber == startLineOfCurrentBlock){
+						bm.firstLineofBlock=lines[startLineOfCurrentBlock]
+						bm.timestamp = changeTime
+						blockExist=true
+					}
+					return bm
+				})
+				if(!blockExist){
+					this.blockMetadata.push({
+						firstLineofBlock:lines[startLineOfCurrentBlock],
+						timestamp:changeTime,
+						lineNumber:startLineOfCurrentBlock
+					})
+				}
+			}
+			if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
+			this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),1000)
+			//set last cursor position and last line length
+			//to the current value
+			this.lastCursorPosition = cm.getCursor()
+			this.lastLineLength=currentLength
+	}
+
 	//this seems to be where the plugin started
 	async onload() {
 		console.log('loading plugin');
 		this.registerCodeMirror((cm: CodeMirror.Editor) => {
 			this.cm=cm
 			this.lastLineLength=cm.getValue().split("\n").length
-			cm.on("cursorActivity",(cm)=>{
-				this.lastCursorPosition = cm.getCursor()
-				if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
-				if(this.currentFile != null || this.currentFile != undefined)
-					this.globalTimeOut = setTimeout(()=>this.updateDoc(this.currentFile),1000)
-			})
 
-			cm.on("change",async(cm,co)=>{
-				const leaf = this.app.workspace.activeLeaf;
-				if(!leaf)
-					return;
-				const currentView = leaf.view as MarkdownView;
-				const currentFile = currentView.file
-				this.currentFile = currentFile
-				this.data = cm.getValue()
-				const changeTime = this.formatDate(new Date())
-				const startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);				
-				const lines = this.data.split("\n")
-				var currentLength = lines.length
+			this.listenForCursorPosition = this.listenForCursorPosition.bind(this);
+			cm.on("cursorActivity",this.listenForCursorPosition)
 
-				if(this.modifiedThroughPlugin){
-					this.modifiedThroughPlugin=false;
-					this.lastCursorPosition = cm.getCursor()
-					this.lastLineLength=currentLength
-					return
-				}
-
-				//check if doc length change
-				//update tempMetadata if so
-				var different =currentLength - this.lastLineLength
-				if(different != 0){
-					var lineOrigin
-					if(co.origin=="+delete"){
-						lineOrigin = co.from
-					}else{
-						lineOrigin = this.lastCursorPosition
-					}
-					if(lineOrigin.ch>0){
-						lineOrigin.line+=1
-					}
-					this.updateTempMetadata(lineOrigin.line,different)
-				}
-
-				//check if a character is changed
-				//or user simply press enter or delete
-				//empty character, return
-				// var characterChanged=false
-				// co.removed.forEach(c=>{
-				// 	if(c != ""){
-				// 		characterChanged=true
-				// 	}
-				// })
-				// co.text.forEach(c=>{
-				// 	if(c!=""){
-				// 		characterChanged=true
-				// 	}
-				// })
-				// if(!characterChanged){
-				// 	this.lastCursorPosition = cm.getCursor()
-				// 	this.lastLineLength=currentLength
-				// 	return
-				// }
-
-				//cursor is in the metadata, return
-				if(startLineOfCurrentBlock == 0 && lines[startLineOfCurrentBlock].startsWith("---")){
-					this.lastCursorPosition = cm.getCursor()
-					this.lastLineLength=currentLength
-					return;
-				}
-
-				//user removed a block
-				if(lines[startLineOfCurrentBlock] == '' && co.origin=="+delete"){
-					if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
-					this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),2000)
-					this.lastCursorPosition = cm.getCursor()
-					this.lastLineLength=currentLength
-					return;
-				}
-				
-				//update temp metadata
-				if(lines[startLineOfCurrentBlock] != "" && lines[startLineOfCurrentBlock] != '---'){
-					var blockExist=false
-					this.blockMetadata = this.blockMetadata.map(bm=>{
-						if(bm.lineNumber == startLineOfCurrentBlock){
-							bm.firstLineofBlock=lines[startLineOfCurrentBlock]
-							bm.timestamp = changeTime
-							blockExist=true
-						}
-						return bm
-					})
-					if(!blockExist){
-						this.blockMetadata.push({
-							firstLineofBlock:lines[startLineOfCurrentBlock],
-							timestamp:changeTime,
-							lineNumber:startLineOfCurrentBlock
-						})
-					}
-				}
-				if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
-				this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),1000)
-				//set last cursor position and last line length
-				//to the current value
-				this.lastCursorPosition = cm.getCursor()
-				this.lastLineLength=currentLength
-			})
+			this.handleChange = this.handleChange.bind(this)
+			cm.on("change",this.handleChange)
 		})
 	}
 
 	onunload() {
 		console.log('unloading plugin');
+		this.registerCodeMirror((cm:CodeMirror.Editor)=>{
+			cm.off("cursorActivity",this.listenForCursorPosition)
+			cm.off("change",this.handleChange)
+		})
 	}
 }
