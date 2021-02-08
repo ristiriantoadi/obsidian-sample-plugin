@@ -198,7 +198,6 @@ export default class MyPlugin extends Plugin {
 		var newContent="---\n"
 		newContent+=yamlString
 		newContent+="---\n"
-		console.log("new content",newContent)
 		var linePassed=0
 		for(var n = 0;n<lines.length;n++){
 			if(linePassed >= 2){
@@ -222,6 +221,7 @@ export default class MyPlugin extends Plugin {
 		}
 		yamlObject=this.cleanMetadata()
 		yamlObject = this.updateYamlObject(yamlObject)
+		// yamlObject=this.cleanMetadata()
 		//update the content
 		if(yamlObject){
 			var yamlString = YAML.stringify(yamlObject)//yamlString already include end newline
