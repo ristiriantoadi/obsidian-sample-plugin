@@ -39,11 +39,11 @@ export default class MyPlugin extends Plugin {
 		//get start of block
 		var currentLine = cursorLine;
 		var startLineOfCurrentBlock = currentLine;
+		var tempStartLineOfCurrentBlock = -1
 		while(currentLine>=0){
-			if(lines[currentLine] == '' && currentLine != cursorLine)
-				break
-			// if(lines[currentLine] == "")
-			// 	break
+			if(lines[currentLine] == '' && currentLine != cursorLine){
+				tempStartLineOfCurrentBlock = currentLine+1
+			}
 			if(lines[currentLine] == '---' && currentLine != cursorLine)
 				break
 			if(lines[currentLine] == "```" && currentLine != cursorLine)
@@ -53,6 +53,8 @@ export default class MyPlugin extends Plugin {
 			startLineOfCurrentBlock=currentLine;
 			currentLine--;
 		}
+		if(tempStartLineOfCurrentBlock != -1)
+			startLineOfCurrentBlock=tempStartLineOfCurrentBlock
 		return startLineOfCurrentBlock;
 	}
 
@@ -328,7 +330,7 @@ export default class MyPlugin extends Plugin {
 				}
 				
 				//update temp metadata
-				if(lines[startLineOfCurrentBlock] != ""){
+				if(lines[startLineOfCurrentBlock] != "" && lines[startLineOfCurrentBlock] != '---'){
 					var blockExist=false
 					this.blockMetadata = this.blockMetadata.map(bm=>{
 						if(bm.lineNumber == startLineOfCurrentBlock){
