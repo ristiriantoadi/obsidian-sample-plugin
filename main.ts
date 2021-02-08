@@ -44,10 +44,12 @@ export default class MyPlugin extends Plugin {
 				break
 			// if(lines[currentLine] == "")
 			// 	break
-			if(lines[currentLine] == '---')
+			if(lines[currentLine] == '---' && currentLine != cursorLine)
 				break
-			if(lines[currentLine] == "```")
+			if(lines[currentLine] == "```" && currentLine != cursorLine)
 				break
+			if(lines[currentLine].startsWith('```'))
+				return currentLine
 			startLineOfCurrentBlock=currentLine;
 			currentLine--;
 		}
