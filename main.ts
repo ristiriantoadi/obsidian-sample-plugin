@@ -63,12 +63,9 @@ export default class MyPlugin extends Plugin {
 				//check the line below the matched line
 				//if it's not an empty line then the block still exist 
 				if(lines[n+1] != ''){
-					if(lines[n-1] == ''  || lines[n-1] == '---' || lines[n-1] == '```'){
+					if(n == 0 || (n>0 && (lines[n-1] == ''  || lines[n-1] == '---' || lines[n-1] == '```'))){
 						return true
 					}
-					// if(lines[n-1] == '' || lines[n-1] == '---' || lines[n-1] == '```'){
-					// 	return true;
-					// }
 				}
 			}
 		}
@@ -83,7 +80,9 @@ export default class MyPlugin extends Plugin {
 				newContent+=lines[n]+"\n"
 			}else{
 				this.updateTempMetadata(n,-1)
-				this.linesChanged+=-1
+				if(n<this.cm.getCursor().line)
+					this.linesChanged+=-1
+				
 			}
 		}
 		this.data = newContent
@@ -158,7 +157,8 @@ export default class MyPlugin extends Plugin {
 						if(n == blockLine){
 							newContent+=blockId+"\n"
 							this.updateTempMetadata(n,1)
-							this.linesChanged+=1
+							if(n<=this.cm.getCursor().line)
+								this.linesChanged+=1
 						}
 						newContent+=lines[n]+"\n";
 					}
@@ -180,7 +180,7 @@ export default class MyPlugin extends Plugin {
 		return yamlObject
 	}
 
-	updateDoc(currentFile:TFile){
+	async updateDoc(currentFile:TFile){
 		//update yaml and the content
 		//get yaml as object
 		var metadata = this.data.match(/(---)(.*)(---)/s);
@@ -193,30 +193,39 @@ export default class MyPlugin extends Plugin {
 		if(yamlObject){	
 			noYaml=false
 		}
+		// console.log("new data before processing",this.data)
+		// console.log("this data line",this.data.split("\n").length)
 		yamlObject=this.cleanMetadata()//this change this.data
+		// console.log("after cleaning metadata",yamlObject)
 		yamlObject = this.updateYamlObject(yamlObject)//this change this.data, this use linenumber
+		// console.log("after update yaml object",yamlObject)
 		//update the content
-		var yamlString = YAML.stringify(yamlObject)//yamlString already include end newline
-		if(!noYaml){
-			//replace yaml front matter if it exist
-			this.data = this.data.replace(/(?<=---\n)(.*)(?=---)/s,yamlString)
-		}
-		else{
-			//prepend metadata to content
-			this.data = "---\n"+yamlString+"---\n"+this.data
-		}
-		this.modifiedThroughPlugin=true
-		//update cursor position
-		const cursorPos = this.cm.getCursor()
-		cursorPos.line += this.linesChanged
-		console.log("lines changed",this.linesChanged)
-		this.app.vault.modify(currentFile,this.data).then(()=>{
-			//set cursor
+		if(yamlObject){
+			var yamlString = YAML.stringify(yamlObject)//yamlString already include end newline
+			if(!noYaml){
+				//replace yaml front matter if it exist
+				this.data = this.data.replace(/(?<=---\n)(.*)(?=---)/s,yamlString)
+			}
+			else{
+				//prepend metadata to content
+				this.data = "---\n"+yamlString+"---\n"+this.data
+			}
+			// console.log("new data after processing",this.data)
+			// console.log("this data line",this.data.split("\n").length)
+			this.modifiedThroughPlugin=true
+			//update cursor position
+			const cursorPos = this.cm.getCursor()
+			cursorPos.line += this.linesChanged
+			// console.log(this.linesChanged)
+			// console.log("lines changed",this.linesChanged)
+			await this.app.vault.modify(currentFile,this.data)
+			// this.cm.setValue("hello world")
 			this.cm.setCursor(cursorPos)
 			// console.log(this.cm.getCursor())
 			this.linesChanged=0
 			this.blockMetadata = new Array()
-		})
+			// console.log("modified")
+		}
 	}
 
 	updateTempMetadata(lineOrigin:number,different:number){
@@ -238,9 +247,20 @@ export default class MyPlugin extends Plugin {
 			this.lastLineLength=cm.getValue().split("\n").length
 			cm.on("cursorActivity",(cm)=>{
 				this.lastCursorPosition = cm.getCursor()
+				if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
+				if(this.currentFile != null || this.currentFile != undefined)
+					this.globalTimeOut = setTimeout(()=>this.updateDoc(this.currentFile),1000)
 			})
 
-			cm.on("change",(cm,co)=>{
+			cm.on("change",async(cm,co)=>{
+				const leaf = this.app.workspace.activeLeaf;
+				if(!leaf)
+					return;
+				const currentView = leaf.view as MarkdownView;
+				const currentFile = currentView.file
+				this.currentFile = currentFile
+				// this.data = await this.app.vault.read(currentFile)
+				// console.log("data",this.data)
 				this.data = cm.getValue()
 				const changeTime = this.formatDate(new Date())
 				const startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
@@ -299,24 +319,26 @@ export default class MyPlugin extends Plugin {
 
 				//user removed a block
 				if(lines[startLineOfCurrentBlock] == '' && co.origin=="+delete"){
-					console.log("user removed a block")
+					// console.log("user removed a block")
+					if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
+					this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),2000)
 					this.lastCursorPosition = cm.getCursor()
 					this.lastLineLength=currentLength
 					return;
 				}
 				
 				//update temp metadata
-				var blockExist=false
-				this.blockMetadata = this.blockMetadata.map(bm=>{
-					if(bm.lineNumber == startLineOfCurrentBlock){
-						bm.firstLineofBlock=lines[startLineOfCurrentBlock]
-						bm.timestamp = changeTime
-						blockExist=true
-					}
-					return bm
-				})
-				if(!blockExist){
-					if(lines[startLineOfCurrentBlock] != ""){
+				if(lines[startLineOfCurrentBlock] != ""){
+					var blockExist=false
+					this.blockMetadata = this.blockMetadata.map(bm=>{
+						if(bm.lineNumber == startLineOfCurrentBlock){
+							bm.firstLineofBlock=lines[startLineOfCurrentBlock]
+							bm.timestamp = changeTime
+							blockExist=true
+						}
+						return bm
+					})
+					if(!blockExist){
 						this.blockMetadata.push({
 							firstLineofBlock:lines[startLineOfCurrentBlock],
 							timestamp:changeTime,
@@ -324,15 +346,16 @@ export default class MyPlugin extends Plugin {
 						})
 					}
 				}
-				console.log("block metadata",this.blockMetadata)
+				
+				// console.log("block metadata",this.blockMetadata)
 
-				const leaf = this.app.workspace.activeLeaf;
-				if(!leaf)
-					return;
-				const currentView = leaf.view as MarkdownView;
-				const currentFile = currentView.file
+				// const leaf = this.app.workspace.activeLeaf;
+				// if(!leaf)
+				// 	return;
+				// const currentView = leaf.view as MarkdownView;
+				// const currentFile = currentView.file
 				if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
-				this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),5000)
+				this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),1000)
 
 				//set last cursor position and last line length
 				//to the current value
