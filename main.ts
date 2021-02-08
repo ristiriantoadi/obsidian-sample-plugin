@@ -28,6 +28,19 @@ export default class MyPlugin extends Plugin {
 		var getSecond:string = date.getSeconds()< 10 ? `0${date.getSeconds()}`:`${date.getSeconds()}`
 		return  `${getYear}-${getMonth}-${getDate} ${getHour}:${getMinute}:${getSecond}`
 	}
+
+	getYamlString(){
+		const lines = this.data.split("\n")
+		var yamlString=""
+		if(lines[0] == '---'){
+			var n = 1
+			while(lines[n] != '---'){
+				yamlString+=lines[n]+"\n"
+				n++
+			}
+		}
+		return yamlString
+	}
 	
 	generateUniqueBlockId(){
 		return '^' + Math.random().toString(36).substr(2, 9);
@@ -36,20 +49,23 @@ export default class MyPlugin extends Plugin {
 	getStartLineOfCurrentBlock(cm:CodeMirror.Editor):number{
 		const cursorLine = cm.getCursor().line
 		const lines = this.data.split("\n")
-		//get start of block
+		//get start line of block
 		var currentLine = cursorLine;
 		var startLineOfCurrentBlock = currentLine;
 		var tempStartLineOfCurrentBlock = -1
-		while(currentLine>=0){
-			if(lines[currentLine] == '' && currentLine != cursorLine){
+		while(currentLine>0){
+			if(lines[currentLine] == '' && tempStartLineOfCurrentBlock == -1 && currentLine != cursorLine){
 				tempStartLineOfCurrentBlock = currentLine+1
 			}
 			if(lines[currentLine] == '---' && currentLine != cursorLine)
 				break
 			if(lines[currentLine] == "```" && currentLine != cursorLine)
 				break
-			if(lines[currentLine].startsWith('```'))
+			if(lines[currentLine].startsWith('```')){
+				if(lines[currentLine-1].startsWith('^'))	
+					return currentLine-1
 				return currentLine
+			}
 			startLineOfCurrentBlock=currentLine;
 			currentLine--;
 		}
@@ -104,12 +120,7 @@ export default class MyPlugin extends Plugin {
 
 	cleanMetadata(){
 		//clean the metadata from non-existing block
-		//get yaml as object
-		var metadata = this.data.match(/(---)(.*)(---)/s);
-		var yamlString = ""
-		if(metadata){
-			yamlString = metadata[0].match(/(?<=---\n)(.*)(?=\n---)/s)[0];
-		}
+		var yamlString=this.getYamlString()
 		var yamlObject = YAML.parse(yamlString)
 		//run through each blocktimestamp element and check if that block still exist
 		if(yamlObject){
@@ -182,51 +193,55 @@ export default class MyPlugin extends Plugin {
 		return yamlObject
 	}
 
+	replaceYaml(yamlString:string){
+		var lines = this.data.split("\n")
+		var newContent="---\n"
+		newContent+=yamlString
+		newContent+="---\n"
+		console.log("new content",newContent)
+		var linePassed=0
+		for(var n = 0;n<lines.length;n++){
+			if(linePassed >= 2){
+				newContent+=lines[n]+"\n"
+			}
+			if(lines[n] == '---'){
+				linePassed++
+			}
+		}
+		this.data = newContent
+	}
+
 	async updateDoc(currentFile:TFile){
 		//update yaml and the content
 		//get yaml as object
-		var metadata = this.data.match(/(---)(.*)(---)/s);
-		var yamlString = ""
-		if(metadata){
-			yamlString = metadata[0].match(/(?<=---\n)(.*)(?=\n---)/s)[0];
-		}
+		var yamlString = this.getYamlString()
 		var yamlObject = YAML.parse(yamlString)
 		var noYaml=true
 		if(yamlObject){	
 			noYaml=false
 		}
-		// console.log("new data before processing",this.data)
-		// console.log("this data line",this.data.split("\n").length)
-		yamlObject=this.cleanMetadata()//this change this.data
-		// console.log("after cleaning metadata",yamlObject)
-		yamlObject = this.updateYamlObject(yamlObject)//this change this.data, this use linenumber
-		// console.log("after update yaml object",yamlObject)
+		yamlObject=this.cleanMetadata()
+		yamlObject = this.updateYamlObject(yamlObject)
 		//update the content
 		if(yamlObject){
 			var yamlString = YAML.stringify(yamlObject)//yamlString already include end newline
 			if(!noYaml){
 				//replace yaml front matter if it exist
-				this.data = this.data.replace(/(?<=---\n)(.*)(?=---)/s,yamlString)
+				// this.data = this.data.replace(/(?<=---\n)(.*)(?=---)/s,yamlString)
+				this.replaceYaml(yamlString)
 			}
 			else{
 				//prepend metadata to content
 				this.data = "---\n"+yamlString+"---\n"+this.data
 			}
-			// console.log("new data after processing",this.data)
-			// console.log("this data line",this.data.split("\n").length)
 			this.modifiedThroughPlugin=true
 			//update cursor position
 			const cursorPos = this.cm.getCursor()
 			cursorPos.line += this.linesChanged
-			// console.log(this.linesChanged)
-			// console.log("lines changed",this.linesChanged)
 			await this.app.vault.modify(currentFile,this.data)
-			// this.cm.setValue("hello world")
 			this.cm.setCursor(cursorPos)
-			// console.log(this.cm.getCursor())
 			this.linesChanged=0
 			this.blockMetadata = new Array()
-			// console.log("modified")
 		}
 	}
 
@@ -261,11 +276,9 @@ export default class MyPlugin extends Plugin {
 				const currentView = leaf.view as MarkdownView;
 				const currentFile = currentView.file
 				this.currentFile = currentFile
-				// this.data = await this.app.vault.read(currentFile)
-				// console.log("data",this.data)
 				this.data = cm.getValue()
 				const changeTime = this.formatDate(new Date())
-				const startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
+				const startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);				
 				const lines = this.data.split("\n")
 				var currentLength = lines.length
 
@@ -321,7 +334,6 @@ export default class MyPlugin extends Plugin {
 
 				//user removed a block
 				if(lines[startLineOfCurrentBlock] == '' && co.origin=="+delete"){
-					// console.log("user removed a block")
 					if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
 					this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),2000)
 					this.lastCursorPosition = cm.getCursor()
@@ -348,17 +360,8 @@ export default class MyPlugin extends Plugin {
 						})
 					}
 				}
-				
-				// console.log("block metadata",this.blockMetadata)
-
-				// const leaf = this.app.workspace.activeLeaf;
-				// if(!leaf)
-				// 	return;
-				// const currentView = leaf.view as MarkdownView;
-				// const currentFile = currentView.file
 				if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
 				this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),1000)
-
 				//set last cursor position and last line length
 				//to the current value
 				this.lastCursorPosition = cm.getCursor()
