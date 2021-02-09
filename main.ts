@@ -121,10 +121,8 @@ export default class MyPlugin extends Plugin {
 		return false;
 	}
 
-	cleanMetadata(){
+	cleanMetadata(yamlObject:any){
 		//clean the metadata from non-existing block
-		var yamlString=this.getYamlString()
-		var yamlObject = YAML.parse(yamlString)
 		//run through each blocktimestamp element and check if that block still exist
 		if(yamlObject){
 			if(yamlObject.blockTimestamp){
@@ -233,8 +231,8 @@ export default class MyPlugin extends Plugin {
 		if(yamlObject){	
 			noYaml=false
 		}
-		yamlObject=this.cleanMetadata()
 		yamlObject = this.updateYamlObject(yamlObject)
+		yamlObject=this.cleanMetadata(yamlObject)
 		//update the content
 		if(yamlObject){
 			var yamlString = YAML.stringify(yamlObject)//yamlString already include end newline
