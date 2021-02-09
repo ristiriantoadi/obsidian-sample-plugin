@@ -61,8 +61,10 @@ export default class MyPlugin extends Plugin {
 			if(lines[currentLine] == "```" && currentLine != cursorLine)
 				break
 			if(lines[currentLine].startsWith('```') && lines[currentLine] != "```"){
-				if(lines[currentLine-1].startsWith('^'))	
-					return currentLine-1
+				// if(lines[currentLine-1].startsWith('^'))	
+				// 	return currentLine-1
+				if(lines[currentLine+1].startsWith('^'))	
+					return currentLine+1
 				return currentLine
 			}
 			startLineOfCurrentBlock=currentLine;
@@ -82,7 +84,7 @@ export default class MyPlugin extends Plugin {
 				if(lines[n+1] != ''){
 					//check the line above
 					//if it's an empty line, ---, or ``` then it must be the start of block
-					if(n == 0 || (n>0 && (lines[n-1] == ''  || lines[n-1] == '---' || lines[n-1] == '```'))){
+					if(n == 0 || (n>0 && (lines[n-1] == ''  || lines[n-1] == '---' || lines[n-1] == '```'|| lines[n-1].startsWith("```")))){
 						return true
 					}
 				}
@@ -112,7 +114,7 @@ export default class MyPlugin extends Plugin {
 		const lines = this.data.split("\n")
 		if(lines[bm.lineNumber] == bm.firstLineofBlock){
 			if(bm.lineNumber == 0 || (bm.lineNumber>0 && (lines[bm.lineNumber-1] == '' 
-			|| lines[bm.lineNumber-1] == '---' || lines[bm.lineNumber-1] == '```')))
+			|| lines[bm.lineNumber-1] == '---' || lines[bm.lineNumber-1] == '```' || lines[bm.lineNumber-1].startsWith("```"))))
 				return true
 		}
 		return false;
@@ -169,18 +171,22 @@ export default class MyPlugin extends Plugin {
 					var newContent=""
 					for(var n = 0;n<lines.length;n++){
 						if(n == blockLine){
-							console.log("start of block",lines[n])
-							newContent+=blockId+"\n"
-							console.log("n",n)
-							console.log("cursor",this.cm.getCursor().line)
+							if(lines[n].startsWith("```")){
+								newContent+=lines[n]+"\n";
+								newContent+=blockId+"\n"
+							}else{
+								newContent+=blockId+"\n"
+								newContent+=lines[n]+"\n";
+							}
+							
 							if(n<=cursorPosition){
 								this.linesChanged+=1
 								cursorPosition+=1
-								console.log("lines changed added 1")
 							}
 							this.updateTempMetadata(n,1)
+						}else{
+							newContent+=lines[n]+"\n";
 						}
-						newContent+=lines[n]+"\n";
 					}
 					this.data = newContent
 				}else{
@@ -227,7 +233,9 @@ export default class MyPlugin extends Plugin {
 			noYaml=false
 		}
 		yamlObject=this.cleanMetadata()
+		console.log("before update",yamlObject)
 		yamlObject = this.updateYamlObject(yamlObject)
+		console.log("after update",yamlObject)
 		//update the content
 		if(yamlObject){
 			var yamlString = YAML.stringify(yamlObject)//yamlString already include end newline
@@ -243,11 +251,12 @@ export default class MyPlugin extends Plugin {
 			//update cursor position
 			const cursorPos = this.cm.getCursor()
 			cursorPos.line += this.linesChanged
-			console.log("lines changed",this.linesChanged)
+			console.log("this.data",this.data)
 			await this.app.vault.modify(currentFile,this.data)
 			this.cm.setCursor(cursorPos)
 			this.linesChanged=0
 			this.blockMetadata = new Array()
+			console.log("modified")
 		}
 	}
 
@@ -313,13 +322,13 @@ export default class MyPlugin extends Plugin {
 			}
 
 			//user removed a block
-			if(lines[startLineOfCurrentBlock] == '' && co.origin=="+delete"){
-				if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
-				this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),2000)
-				this.lastCursorPosition = cm.getCursor()
-				this.lastLineLength=currentLength
-				return;
-			}
+			// if(lines[startLineOfCurrentBlock] == '' && co.origin=="+delete"){
+			// 	if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
+			// 	this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),2000)
+			// 	this.lastCursorPosition = cm.getCursor()
+			// 	this.lastLineLength=currentLength
+			// 	return;
+			// }
 			
 			//update temp metadata
 			if(lines[startLineOfCurrentBlock] != "" && lines[startLineOfCurrentBlock] != '---'){
@@ -350,7 +359,7 @@ export default class MyPlugin extends Plugin {
 	static postprocessor: MarkdownPostProcessor = (el: HTMLElement, ctx:MarkdownPostProcessorContext)=> {
 		if(el.getElementsByClassName("frontmatter").length==0){	
 			console.log(el)
-			console.log(ctx)
+			// console.log(ctx)
 		}
 		
 	}
