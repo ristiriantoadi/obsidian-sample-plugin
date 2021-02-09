@@ -1,5 +1,5 @@
 import { CONNREFUSED } from 'dns';
-import {Plugin,MarkdownView, TFile} from 'obsidian';
+import {Plugin,MarkdownView, TFile,MarkdownPostProcessor,MarkdownPostProcessorContext,MarkdownPreviewRenderer} from 'obsidian';
 import { start } from 'repl';
 import YAML from 'yaml'
 import {IBlockMetadata} from "block-metadata"
@@ -16,6 +16,7 @@ export default class MyPlugin extends Plugin {
 	cm:CodeMirror.Editor
 	lastLineLength:number=1
 	linesChanged:number=0
+
 	
 	formatDate(date:Date):string{
 		var getYear:string = date.getFullYear().toString();
@@ -172,7 +173,7 @@ export default class MyPlugin extends Plugin {
 							newContent+=blockId+"\n"
 							console.log("n",n)
 							console.log("cursor",this.cm.getCursor().line)
-							if(n<=cursorPosition{
+							if(n<=cursorPosition){
 								this.linesChanged+=1
 								cursorPosition+=1
 								console.log("lines changed added 1")
@@ -263,9 +264,9 @@ export default class MyPlugin extends Plugin {
 
 	listenForCursorPosition(cm:CodeMirror.Editor){
 		this.lastCursorPosition = cm.getCursor()
-		if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
-		if(this.currentFile != null || this.currentFile != undefined)
-			this.globalTimeOut = setTimeout(()=>this.updateDoc(this.currentFile),1000)
+		// if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
+		// if(this.currentFile != null || this.currentFile != undefined)
+		// 	this.globalTimeOut = setTimeout(()=>this.updateDoc(this.currentFile),1000)
 	}
 	
 	async handleChange(cm:CodeMirror.Editor,co:CodeMirror.EditorChangeLinkedList){
@@ -346,6 +347,13 @@ export default class MyPlugin extends Plugin {
 			this.lastCursorPosition = cm.getCursor()
 			this.lastLineLength=currentLength
 	}
+	static postprocessor: MarkdownPostProcessor = (el: HTMLElement, ctx:MarkdownPostProcessorContext)=> {
+		if(el.getElementsByClassName("frontmatter").length==0){	
+			console.log(el)
+			console.log(ctx)
+		}
+		
+	}
 
 	//this seems to be where the plugin started
 	async onload() {
@@ -353,13 +361,13 @@ export default class MyPlugin extends Plugin {
 		this.registerCodeMirror((cm: CodeMirror.Editor) => {
 			this.cm=cm
 			this.lastLineLength=cm.getValue().split("\n").length
-
 			this.listenForCursorPosition = this.listenForCursorPosition.bind(this);
 			cm.on("cursorActivity",this.listenForCursorPosition)
-
 			this.handleChange = this.handleChange.bind(this)
 			cm.on("change",this.handleChange)
 		})
+		MyPlugin.postprocessor = MyPlugin.postprocessor.bind(this)
+		MarkdownPreviewRenderer.registerPostProcessor(MyPlugin.postprocessor)
 	}
 
 	onunload() {
