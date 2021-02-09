@@ -17,6 +17,7 @@ export default class MyPlugin extends Plugin {
 	cm:CodeMirror.Editor
 	lastLineLength:number=1
 	linesChanged:number=0
+	yamlObject:any
 
 	
 	formatDate(date:Date):string{
@@ -45,7 +46,48 @@ export default class MyPlugin extends Plugin {
 	generateUniqueBlockId(){
 		return '^' + Math.random().toString(36).substr(2, 9);
 	}
+
+	isList(currentLine:number){
+		const lines = this.data.split("\n")
+		while(currentLine>=0){
+			// console.log(lines[currentLine])
+			if(lines[currentLine].startsWith('1.') || lines[currentLine].startsWith('-')){
+				return true;				
+			}
+			if(lines[currentLine] == ''){
+				return false
+			}
+			currentLine--;
+		}
+		return false;
+	}
 	
+	getStartOfList(currentLine:number){
+		const lines = this.data.split("\n")
+		var startLineOfCurrentBlock = currentLine;
+		// console.log("get start of list")
+		while(currentLine>0){
+			// console.log(lines[currentLine])
+			if(lines[currentLine].startsWith('1.')){
+				if(lines[currentLine+1].startsWith("^")){
+					return currentLine+1
+				}
+				return currentLine
+			}
+			if(lines[currentLine].startsWith('-')){
+				startLineOfCurrentBlock=currentLine
+			}
+			if(lines[currentLine] == ''){
+				break
+			}
+			currentLine--;
+		}
+		if(lines[startLineOfCurrentBlock+1].startsWith("^")){
+			return startLineOfCurrentBlock+1
+		}
+		return startLineOfCurrentBlock
+	}
+
 	getStartLineOfCurrentBlock(cm:CodeMirror.Editor):number{
 		const cursorLine = cm.getCursor().line
 		const lines = this.data.split("\n")
@@ -53,6 +95,13 @@ export default class MyPlugin extends Plugin {
 		var currentLine = cursorLine;
 		var startLineOfCurrentBlock = currentLine;
 		var tempStartLineOfCurrentBlock = -1
+
+		//check if it's in a list
+		// if(this.isList(currentLine)){
+		// 	// console.log("true")
+		// 	return this.getStartOfList(currentLine)
+		// }
+
 		while(currentLine>0){
 			if(lines[currentLine] == '' && tempStartLineOfCurrentBlock == -1 && currentLine != cursorLine){
 				tempStartLineOfCurrentBlock = currentLine+1
@@ -61,11 +110,9 @@ export default class MyPlugin extends Plugin {
 				break
 			if(lines[currentLine] == "```" && currentLine != cursorLine)
 				break
-			if(lines[currentLine].startsWith('```') && lines[currentLine] != "```"){
-				// if(lines[currentLine-1].startsWith('^'))	
-				// 	return currentLine-1
-				if(lines[currentLine+1].startsWith('^'))	
-					return currentLine+1
+			if((lines[currentLine].startsWith('```') && lines[currentLine] != "```")){
+				// if(lines[currentLine+1].startsWith('^'))	
+				// 	return currentLine+1
 				return currentLine
 			}
 			startLineOfCurrentBlock=currentLine;
@@ -79,9 +126,13 @@ export default class MyPlugin extends Plugin {
 	isBlockExist(blockId:string){
 		const lines = this.data.split("\n")
 		for(var n = 0;n<lines.length;n++){
-			if(lines[n] == blockId){
+			if(lines[n] == blockId){ 
+				//check if it's block identifier for list
+				if(n>0 && (lines[n-1].startsWith("1.") || lines[n-1].startsWith("-"))){
+					return true
+				}
 				//check the line below the matched line
-				//if it's not an empty line then the block still exist 
+				//if it's not an empty line then the block still exist
 				if(lines[n+1] != ''){
 					//check the line above
 					//if it's an empty line, ---, or ``` then it must be the start of block
@@ -121,88 +172,126 @@ export default class MyPlugin extends Plugin {
 		return false;
 	}
 
-	cleanMetadata(yamlObject:any){
+	cleanMetadata(){
 		//clean the metadata from non-existing block
 		//run through each blocktimestamp element and check if that block still exist
-		if(yamlObject){
-			if(yamlObject.blockTimestamp){
-				yamlObject.blockTimestamp = yamlObject.blockTimestamp.filter((b:any)=>{
-					const blockId=b.id
-					if(this.isBlockExist(blockId)){
-						return b
-					}else{
-						//remove the block identifier
-						//if the block identifier still exist in the content
-						this.removeBlockIdentifier(blockId)//this change this.data
-						this.linesChanged+=-3
+		if(this.yamlObject){
+			if(this.yamlObject.blockTimestamp){
+				const lines = this.data.split("\n")
+				this.yamlObject.blockTimestamp = this.yamlObject.blockTimestamp.filter((bt:any)=>{
+					if(lines[bt.lineNumber] == bt.firstLine){
+						return bt
 					}
+					this.linesChanged+=-4
+
+					// const blockId=b.id
+					// if(this.isBlockExist(blockId)){
+					// 	return b
+					// }else{
+					// 	//remove the block identifier
+					// 	//if the block identifier still exist in the content
+					// 	this.removeBlockIdentifier(blockId)//this change this.data
+					// 	this.linesChanged+=-3
+					// }
 				})
 			}
 		}
-		return yamlObject
+		// return yamlObject
 	}
 
-	updateYamlObject(yamlObject:any){
+	updateYamlObject(){
 		var cursorPosition = this.cm.getCursor().line
 		this.blockMetadata.forEach(bm=>{
 			//check if the bm still valid
 			if(this.isBlockMetadataStillValid(bm)){//this use line number
-				//new block
-				if(!bm.firstLineofBlock.startsWith("^")){
-					if(yamlObject == null || yamlObject == undefined){
-						yamlObject = new Object()
-						this.linesChanged+=2					
+				//initialized yaml object if null
+				if(this.yamlObject == undefined || this.yamlObject == null){
+					this.yamlObject = new Object()
+					this.linesChanged+=2
+					// this.updateBlockMetadata(0,2)
+				}
+				if(this.yamlObject.blockTimestamp == undefined || this.yamlObject == null){
+					this.yamlObject.blockTimestamp = new Array()
+					this.linesChanged+=1
+					// this.updateBlockMetadata(0,1)
+				}
+				
+				//update yamlObject with new value
+				var blockExist=false
+				this.yamlObject.blockTimestamp = this.yamlObject.blockTimestamp.map((bt:any)=>{
+					if(bt.lineNumber == bm.lineNumber){
+						bt.modified  = bm.timestamp
+						bt.firstLine = bm.firstLineofBlock
+						blockExist=true
 					}
-					if(yamlObject.blockTimestamp == null || yamlObject.blockTimestamp == undefined){
-						yamlObject.blockTimestamp = new Array()
-						this.linesChanged+=1
-					}
-					//generate new block id and append it to the start of the block
-					var blockId = this.generateUniqueBlockId()
-					const lines = this.data.split("\n")
-					var blockLine=bm.lineNumber
-					yamlObject.blockTimestamp.push({
-						id:blockId,
+					return bt
+				})
+				if(!blockExist){
+					this.yamlObject.blockTimestamp.push({
+						lineNumber:bm.lineNumber,
+						firstLine:bm.firstLineofBlock,
 						created:bm.timestamp,
 						modified:bm.timestamp
 					})
-					this.linesChanged+=3
-					var newContent=""
-					for(var n = 0;n<lines.length;n++){
-						if(n == blockLine){
-							if(lines[n].startsWith("```")){
-								newContent+=lines[n]+"\n";
-								newContent+=blockId+"\n"
-							}else{
-								newContent+=blockId+"\n"
-								newContent+=lines[n]+"\n";
-							}
-							
-							if(n<=cursorPosition){
-								this.linesChanged+=1
-								cursorPosition+=1
-							}
-							this.updateTempMetadata(n,1)
-						}else{
-							newContent+=lines[n]+"\n";
-						}
-					}
-					this.data = newContent
-				}else{
-					if(yamlObject){
-						if(yamlObject.blockTimestamp){
-							yamlObject.blockTimestamp = yamlObject.blockTimestamp.map((bt:any)=>{
-								if(bt.id == bm.firstLineofBlock){
-									bt.modified=bm.timestamp
-								}
-								return bt
-							})
-						}
-					}
+					this.linesChanged+=4
 				}
+				
+				// console.log("bm first line of block",bm.firstLineofBlock)
+				//new block
+				// if(!bm.firstLineofBlock.startsWith("^")){
+				// 	if(yamlObject == null || yamlObject == undefined){
+				// 		yamlObject = new Object()
+				// 		this.linesChanged+=2					
+				// 	}
+				// 	if(yamlObject.blockTimestamp == null || yamlObject.blockTimestamp == undefined){
+				// 		yamlObject.blockTimestamp = new Array()
+				// 		this.linesChanged+=1
+				// 	}
+				// 	//generate new block id and append it to the start of the block
+				// 	var blockId = this.generateUniqueBlockId()
+				// 	const lines = this.data.split("\n")
+				// 	var blockLine=bm.lineNumber
+				// 	yamlObject.blockTimestamp.push({
+				// 		id:blockId,
+				// 		created:bm.timestamp,
+				// 		modified:bm.timestamp
+				// 	})
+				// 	this.linesChanged+=3
+				// 	var newContent=""
+				// 	for(var n = 0;n<lines.length;n++){
+				// 		if(n == blockLine){
+				// 			if(lines[n].startsWith("```") || lines[n].startsWith("1.") || lines[n].startsWith("-")){
+				// 				newContent+=lines[n]+"\n";
+				// 				newContent+=blockId+"\n"
+				// 			}else{
+				// 				newContent+=blockId+"\n"
+				// 				newContent+=lines[n]+"\n";
+				// 			}
+							
+				// 			if(n<=cursorPosition){
+				// 				this.linesChanged+=1
+				// 				cursorPosition+=1
+				// 			}
+				// 			this.updateTempMetadata(n,1)
+				// 		}else{
+				// 			newContent+=lines[n]+"\n";
+				// 		}
+				// 	}
+				// 	this.data = newContent
+				// }else{
+				// 	if(yamlObject){
+				// 		if(yamlObject.blockTimestamp){
+				// 			yamlObject.blockTimestamp = yamlObject.blockTimestamp.map((bt:any)=>{
+				// 				if(bt.id == bm.firstLineofBlock){
+				// 					bt.modified=bm.timestamp
+				// 				}
+				// 				return bt
+				// 			})
+				// 		}
+				// 	}
+				// }
 			}
 		})
-		return yamlObject
 	}
 
 	replaceYaml(yamlString:string){
@@ -225,18 +314,30 @@ export default class MyPlugin extends Plugin {
 	async updateDoc(currentFile:TFile){
 		//update yaml and the content
 		//get yaml as object
-		var yamlString = this.getYamlString()
-		var yamlObject = YAML.parse(yamlString)
-		var noYaml=true
-		if(yamlObject){	
-			noYaml=false
-		}
-		yamlObject = this.updateYamlObject(yamlObject)
-		yamlObject=this.cleanMetadata(yamlObject)
+		// var yamlString = this.getYamlString()
+		// var yamlObject = YAML.parse(yamlString)
+		// var noYaml=true
+		// if(yamlObject){	
+		// 	noYaml=false
+		// }
+		// yamlObject = this.updateYamlObject(yamlObject)
+		// yamlObject=this.cleanMetadata(yamlObject)
+		// var noYaml=true
+		// if(this.yamlObject){	
+		// 	noYaml=false
+		// }
+		
+		this.updateYamlObject()
+		this.cleanMetadata()
+		this.updateBlockMetadata(0,this.linesChanged)
+		
 		//update the content
-		if(yamlObject){
-			var yamlString = YAML.stringify(yamlObject)//yamlString already include end newline
-			if(!noYaml){
+		// console.log("noYaml",noYaml)
+		console.log("yamlObject",this.yamlObject)
+		if(this.yamlObject){
+			var yamlString = YAML.stringify(this.yamlObject)//yamlString already include end newline
+			var oldYaml = YAML.parse(this.getYamlString())
+			if(oldYaml != undefined && oldYaml != null){
 				//replace yaml front matter if it exist
 				this.replaceYaml(yamlString)
 			}
@@ -252,6 +353,7 @@ export default class MyPlugin extends Plugin {
 			this.cm.setCursor(cursorPos)
 			this.linesChanged=0
 			this.blockMetadata = new Array()
+			// this.yamlObject = this.getYamlString()
 		}
 	}
 
@@ -269,6 +371,19 @@ export default class MyPlugin extends Plugin {
 	listenForCursorPosition(cm:CodeMirror.Editor){
 		this.lastCursorPosition = cm.getCursor()
 	}
+
+	updateBlockMetadata(lineOrigin:number,different:number){
+		if(this.yamlObject){
+			if(this.yamlObject.blockTimestamp){
+				this.yamlObject.blockTimestamp = this.yamlObject.blockTimestamp.map((bt:any)=>{
+					if(bt.lineNumber>=lineOrigin){
+						bt.lineNumber+=different
+					}
+					return bt
+				})
+			}
+		}
+	}
 	
 	async handleChange(cm:CodeMirror.Editor,co:CodeMirror.EditorChangeLinkedList){
 		const leaf = this.app.workspace.activeLeaf;
@@ -278,9 +393,11 @@ export default class MyPlugin extends Plugin {
 			const currentFile = currentView.file
 			this.currentFile = currentFile
 			this.data = cm.getValue()
+			// this.yamlObject = YAML.parse(this.getYamlString())
 			const changeTime = this.formatDate(new Date())
-			const startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);				
+			const startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);			
 			const lines = this.data.split("\n")
+			// console.log(lines[startLineOfCurrentBlock])
 			var currentLength = lines.length
 
 			if(this.modifiedThroughPlugin){
@@ -304,6 +421,8 @@ export default class MyPlugin extends Plugin {
 					lineOrigin.line+=1
 				}
 				this.updateTempMetadata(lineOrigin.line,different)
+				this.updateBlockMetadata(lineOrigin.line,different)
+				
 			}
 
 			//cursor is in the metadata, return
@@ -343,8 +462,11 @@ export default class MyPlugin extends Plugin {
 		if(el.getElementsByClassName("frontmatter").length==0){
 			var elStringSansHTML = el.innerHTML.replace(/(<([^>]+)>)/gi,"")
 			var match = elStringSansHTML.match(/\^[a-z0-9]{9}/)
+			console.log(el)
+			console.log(el.innerHTML)
 			if(match){
 				var blockId = match[0]
+				console.log(blockId)
 				var yamlBlockTimestamp = ctx.frontmatter.blockTimestamp
 				//create the regex
 				//each character of the identifier could be put between html
@@ -369,6 +491,7 @@ export default class MyPlugin extends Plugin {
 						}
 					})
 					if(yamlBlockTimestamp.length>0){
+						// console.log(yamlBlockTimestamp);
 						(el.childNodes[0] as HTMLElement).innerHTML = `<span class='timestamp'>Created:${yamlBlockTimestamp[0].created},modified:${yamlBlockTimestamp[0].modified}</span>`+(el.childNodes[0] as HTMLElement).innerHTML 
 						el.addEventListener("mouseenter",(e)=>{
 							var element = (e.target as HTMLElement).querySelector("span.timestamp")
