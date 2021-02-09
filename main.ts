@@ -342,11 +342,28 @@ export default class MyPlugin extends Plugin {
 			this.lastLineLength=currentLength
 	}
 	static postprocessor: MarkdownPostProcessor = (el: HTMLElement, ctx:MarkdownPostProcessorContext)=> {
-		if(el.getElementsByClassName("frontmatter").length==0){	
-			var match = el.innerHTML.match(/\^[a-z0-9]{9}/g)
+		if(el.getElementsByClassName("frontmatter").length==0){
+			var elStringSansHTML = el.innerHTML.replace(/(<([^>]+)>)/gi,"")
+			var match = elStringSansHTML.match(/\^[a-z0-9]{9}/)
 			if(match){
 				var blockId = match[0]
 				var yamlBlockTimestamp = ctx.frontmatter.blockTimestamp
+				// el.innerHTML = el.innerHTML.replace(/\^[a-z0-9]{9}(<br>)*(\n)*/g,"")
+
+				//create the regex
+				//each character of the identifier could be put between html
+				var regex=""
+				for(var i = 0;i<blockId.length;i++){
+					if(blockId[i] == "^"){
+						regex+=`(<([^>]+)>){0,1}\\${blockId[i]}(<([^>]+)>){0,1}`
+					}else{
+						regex+=`(<([^>]+)>){0,1}${blockId[i]}(<([^>]+)>){0,1}`
+					}
+				}
+				console.log("block id",blockId)
+				console.log("before regex",el.innerHTML)
+				el.innerHTML = el.innerHTML.replace(new RegExp(regex,"gi"),"")
+				console.log("after regex",el.innerHTML)
 				if(yamlBlockTimestamp){
 					yamlBlockTimestamp = yamlBlockTimestamp.filter((bt:any)=>{
 						if(bt.id == blockId){
@@ -358,7 +375,6 @@ export default class MyPlugin extends Plugin {
 						timestamp.innerHTML = `Created:${yamlBlockTimestamp[0].created},modified:${yamlBlockTimestamp[0].modified}`
 						timestamp.addClass("timestamp")
 						el.insertBefore(timestamp,el.childNodes[0])
-						el.innerHTML = el.innerHTML.replace(/\^[a-z0-9]{9}(<br>)*(\n)*/g,"")
 						el.addEventListener("mouseenter",(e)=>{
 							var element = (e.target as HTMLElement).querySelector("span.timestamp")
 							element.classList.toggle("visible")
@@ -370,7 +386,6 @@ export default class MyPlugin extends Plugin {
 					}
 				}
 			}
-			console.log(el)
 		}
 		
 	}
