@@ -348,8 +348,6 @@ export default class MyPlugin extends Plugin {
 			if(match){
 				var blockId = match[0]
 				var yamlBlockTimestamp = ctx.frontmatter.blockTimestamp
-				// el.innerHTML = el.innerHTML.replace(/\^[a-z0-9]{9}(<br>)*(\n)*/g,"")
-
 				//create the regex
 				//each character of the identifier could be put between html
 				var regex=""
@@ -361,19 +359,11 @@ export default class MyPlugin extends Plugin {
 					}
 				}
 				regex+="(\n)*"
-				console.log("block id",blockId)
-				console.log("before regex",el.innerHTML)
 				var element = el.childNodes[0];
 				if(el.querySelector("code")){
 					element = el.querySelector("code")
 				}
 				(element as HTMLElement).innerHTML = (element as HTMLElement).innerHTML.replace(new RegExp(regex,"gi"),"")
-				// if(el.querySelector("code")){
-				// 	el.replaceChild(element,el.querySelector("code"))
-				// }else{
-				// 	el.replaceChild(element,el.childNodes[0])
-				// }
-				console.log("after regex",el.innerHTML)
 				if(yamlBlockTimestamp){
 					yamlBlockTimestamp = yamlBlockTimestamp.filter((bt:any)=>{
 						if(bt.id == blockId){
@@ -381,10 +371,6 @@ export default class MyPlugin extends Plugin {
 						}
 					})
 					if(yamlBlockTimestamp.length>0){
-						// var timestamp = document.createElement("span")
-						// timestamp.innerHTML = `Created:${yamlBlockTimestamp[0].created},modified:${yamlBlockTimestamp[0].modified}`
-						// timestamp.addClass("timestamp")
-						// el.insertBefore(timestamp,el.childNodes[0])
 						(el.childNodes[0] as HTMLElement).innerHTML = `<span class='timestamp'>Created:${yamlBlockTimestamp[0].created},modified:${yamlBlockTimestamp[0].modified}</span>`+(el.childNodes[0] as HTMLElement).innerHTML 
 						el.addEventListener("mouseenter",(e)=>{
 							var element = (e.target as HTMLElement).querySelector("span.timestamp")
