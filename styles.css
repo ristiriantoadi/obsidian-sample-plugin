@@ -1,9 +1,14 @@
 /* Sets all the text color to red! */
-body {
-    color: blue;
+
+.timestamp{
+    font-size: 10px;
+    display: none;
 }
 
-.encryption{
-    display: flex;
-    justify-content: center;
+.block{
+    position: relative;
+}
+
+.timestamp.visible{
+    display: inline;
 }

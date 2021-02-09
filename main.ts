@@ -4,6 +4,7 @@ import { start } from 'repl';
 import YAML from 'yaml'
 import {IBlockMetadata} from "block-metadata"
 import { listeners } from 'process';
+import { time } from 'console';
 
 export default class MyPlugin extends Plugin {
 
@@ -233,9 +234,7 @@ export default class MyPlugin extends Plugin {
 			noYaml=false
 		}
 		yamlObject=this.cleanMetadata()
-		console.log("before update",yamlObject)
 		yamlObject = this.updateYamlObject(yamlObject)
-		console.log("after update",yamlObject)
 		//update the content
 		if(yamlObject){
 			var yamlString = YAML.stringify(yamlObject)//yamlString already include end newline
@@ -251,12 +250,10 @@ export default class MyPlugin extends Plugin {
 			//update cursor position
 			const cursorPos = this.cm.getCursor()
 			cursorPos.line += this.linesChanged
-			console.log("this.data",this.data)
 			await this.app.vault.modify(currentFile,this.data)
 			this.cm.setCursor(cursorPos)
 			this.linesChanged=0
 			this.blockMetadata = new Array()
-			console.log("modified")
 		}
 	}
 
@@ -273,9 +270,6 @@ export default class MyPlugin extends Plugin {
 
 	listenForCursorPosition(cm:CodeMirror.Editor){
 		this.lastCursorPosition = cm.getCursor()
-		// if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
-		// if(this.currentFile != null || this.currentFile != undefined)
-		// 	this.globalTimeOut = setTimeout(()=>this.updateDoc(this.currentFile),1000)
 	}
 	
 	async handleChange(cm:CodeMirror.Editor,co:CodeMirror.EditorChangeLinkedList){
@@ -320,15 +314,6 @@ export default class MyPlugin extends Plugin {
 				this.lastLineLength=currentLength
 				return;
 			}
-
-			//user removed a block
-			// if(lines[startLineOfCurrentBlock] == '' && co.origin=="+delete"){
-			// 	if(this.globalTimeOut !=null) clearTimeout(this.globalTimeOut)
-			// 	this.globalTimeOut = setTimeout(()=>this.updateDoc(currentFile),2000)
-			// 	this.lastCursorPosition = cm.getCursor()
-			// 	this.lastLineLength=currentLength
-			// 	return;
-			// }
 			
 			//update temp metadata
 			if(lines[startLineOfCurrentBlock] != "" && lines[startLineOfCurrentBlock] != '---'){
@@ -358,8 +343,34 @@ export default class MyPlugin extends Plugin {
 	}
 	static postprocessor: MarkdownPostProcessor = (el: HTMLElement, ctx:MarkdownPostProcessorContext)=> {
 		if(el.getElementsByClassName("frontmatter").length==0){	
+			var match = el.innerHTML.match(/\^[a-z0-9]{9}/g)
+			if(match){
+				var blockId = match[0]
+				var yamlBlockTimestamp = ctx.frontmatter.blockTimestamp
+				if(yamlBlockTimestamp){
+					yamlBlockTimestamp = yamlBlockTimestamp.filter((bt:any)=>{
+						if(bt.id == blockId){
+							return bt
+						}
+					})
+					if(yamlBlockTimestamp.length>0){
+						var timestamp = document.createElement("span")
+						timestamp.innerHTML = `Created:${yamlBlockTimestamp[0].created},modified:${yamlBlockTimestamp[0].modified}`
+						timestamp.addClass("timestamp")
+						el.insertBefore(timestamp,el.childNodes[0])
+						el.innerHTML = el.innerHTML.replace(/\^[a-z0-9]{9}(<br>)*(\n)*/g,"")
+						el.addEventListener("mouseenter",(e)=>{
+							var element = (e.target as HTMLElement).querySelector("span.timestamp")
+							element.classList.toggle("visible")
+						})
+						el.addEventListener("mouseleave",(e)=>{
+							var element = (e.target as HTMLElement).querySelector("span.timestamp")
+							element.classList.toggle("visible")
+						})
+					}
+				}
+			}
 			console.log(el)
-			// console.log(ctx)
 		}
 		
 	}
