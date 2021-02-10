@@ -46,48 +46,7 @@ export default class MyPlugin extends Plugin {
 	generateUniqueBlockId(){
 		return '^' + Math.random().toString(36).substr(2, 9);
 	}
-
-	isList(currentLine:number){
-		const lines = this.data.split("\n")
-		while(currentLine>=0){
-			// console.log(lines[currentLine])
-			if(lines[currentLine].startsWith('1.') || lines[currentLine].startsWith('-')){
-				return true;				
-			}
-			if(lines[currentLine] == ''){
-				return false
-			}
-			currentLine--;
-		}
-		return false;
-	}
 	
-	getStartOfList(currentLine:number){
-		const lines = this.data.split("\n")
-		var startLineOfCurrentBlock = currentLine;
-		// console.log("get start of list")
-		while(currentLine>0){
-			// console.log(lines[currentLine])
-			if(lines[currentLine].startsWith('1.')){
-				if(lines[currentLine+1].startsWith("^")){
-					return currentLine+1
-				}
-				return currentLine
-			}
-			if(lines[currentLine].startsWith('-')){
-				startLineOfCurrentBlock=currentLine
-			}
-			if(lines[currentLine] == ''){
-				break
-			}
-			currentLine--;
-		}
-		if(lines[startLineOfCurrentBlock+1].startsWith("^")){
-			return startLineOfCurrentBlock+1
-		}
-		return startLineOfCurrentBlock
-	}
-
 	getStartLineOfCurrentBlock(cm:CodeMirror.Editor):number{
 		const cursorLine = cm.getCursor().line
 		const lines = this.data.split("\n")
@@ -123,48 +82,14 @@ export default class MyPlugin extends Plugin {
 		return startLineOfCurrentBlock;
 	}
 
-	isBlockExist(blockId:string){
-		const lines = this.data.split("\n")
-		for(var n = 0;n<lines.length;n++){
-			if(lines[n] == blockId){ 
-				//check if it's block identifier for list
-				if(n>0 && (lines[n-1].startsWith("1.") || lines[n-1].startsWith("-"))){
-					return true
-				}
-				//check the line below the matched line
-				//if it's not an empty line then the block still exist
-				if(lines[n+1] != ''){
-					//check the line above
-					//if it's an empty line, ---, or ``` then it must be the start of block
-					if(n == 0 || (n>0 && (lines[n-1] == ''  || lines[n-1] == '---' || lines[n-1] == '```'|| lines[n-1].startsWith("```")))){
-						return true
-					}
-				}
-			}
-		}
-		return false
-	}
-
-	removeBlockIdentifier(blockId:string){
-		const lines = this.data.split("\n")
-		var newContent=""
-		for(var n=0;n<lines.length;n++){
-			if(lines[n] != blockId){
-				newContent+=lines[n]+"\n"
-			}else{
-				this.updateTempMetadata(n,-1)
-				if(n<this.cm.getCursor().line)
-					this.linesChanged+=-1
-			}
-		}
-		this.data = newContent
-	}
-
 	isBlockMetadataStillValid(bm:any){
 		//check if the temp block metadata still valid
 		//it's still valid if the line above is either empty line, ---, or ```, or it's the first line
+		//or if it's the start of a code block 
 		const lines = this.data.split("\n")
 		if(lines[bm.lineNumber] == bm.firstLineofBlock){
+			if(lines[bm.lineNumber].startsWith("```"))
+				return true
 			if(bm.lineNumber == 0 || (bm.lineNumber>0 && (lines[bm.lineNumber-1] == '' 
 			|| lines[bm.lineNumber-1] == '---' || lines[bm.lineNumber-1] == '```' || lines[bm.lineNumber-1].startsWith("```"))))
 				return true
@@ -180,40 +105,30 @@ export default class MyPlugin extends Plugin {
 				const lines = this.data.split("\n")
 				this.yamlObject.blockTimestamp = this.yamlObject.blockTimestamp.filter((bt:any)=>{
 					if(lines[bt.lineNumber] == bt.firstLine){
-						return bt
+						if(lines[bt.lineNumber].startsWith("```"))
+							return bt
+						if(bt.lineNumber == 0 || (bt.lineNumber>0 && (lines[bt.lineNumber-1] == '' 
+							|| lines[bt.lineNumber-1] == '---' || lines[bt.lineNumber-1] == '```')))
+							return bt
 					}
 					this.linesChanged+=-4
-
-					// const blockId=b.id
-					// if(this.isBlockExist(blockId)){
-					// 	return b
-					// }else{
-					// 	//remove the block identifier
-					// 	//if the block identifier still exist in the content
-					// 	this.removeBlockIdentifier(blockId)//this change this.data
-					// 	this.linesChanged+=-3
-					// }
 				})
 			}
 		}
-		// return yamlObject
 	}
 
 	updateYamlObject(){
-		var cursorPosition = this.cm.getCursor().line
 		this.blockMetadata.forEach(bm=>{
 			//check if the bm still valid
-			if(this.isBlockMetadataStillValid(bm)){//this use line number
+			if(this.isBlockMetadataStillValid(bm)){
 				//initialized yaml object if null
 				if(this.yamlObject == undefined || this.yamlObject == null){
 					this.yamlObject = new Object()
 					this.linesChanged+=2
-					// this.updateBlockMetadata(0,2)
 				}
 				if(this.yamlObject.blockTimestamp == undefined || this.yamlObject == null){
 					this.yamlObject.blockTimestamp = new Array()
 					this.linesChanged+=1
-					// this.updateBlockMetadata(0,1)
 				}
 				
 				//update yamlObject with new value
@@ -235,61 +150,6 @@ export default class MyPlugin extends Plugin {
 					})
 					this.linesChanged+=4
 				}
-				
-				// console.log("bm first line of block",bm.firstLineofBlock)
-				//new block
-				// if(!bm.firstLineofBlock.startsWith("^")){
-				// 	if(yamlObject == null || yamlObject == undefined){
-				// 		yamlObject = new Object()
-				// 		this.linesChanged+=2					
-				// 	}
-				// 	if(yamlObject.blockTimestamp == null || yamlObject.blockTimestamp == undefined){
-				// 		yamlObject.blockTimestamp = new Array()
-				// 		this.linesChanged+=1
-				// 	}
-				// 	//generate new block id and append it to the start of the block
-				// 	var blockId = this.generateUniqueBlockId()
-				// 	const lines = this.data.split("\n")
-				// 	var blockLine=bm.lineNumber
-				// 	yamlObject.blockTimestamp.push({
-				// 		id:blockId,
-				// 		created:bm.timestamp,
-				// 		modified:bm.timestamp
-				// 	})
-				// 	this.linesChanged+=3
-				// 	var newContent=""
-				// 	for(var n = 0;n<lines.length;n++){
-				// 		if(n == blockLine){
-				// 			if(lines[n].startsWith("```") || lines[n].startsWith("1.") || lines[n].startsWith("-")){
-				// 				newContent+=lines[n]+"\n";
-				// 				newContent+=blockId+"\n"
-				// 			}else{
-				// 				newContent+=blockId+"\n"
-				// 				newContent+=lines[n]+"\n";
-				// 			}
-							
-				// 			if(n<=cursorPosition){
-				// 				this.linesChanged+=1
-				// 				cursorPosition+=1
-				// 			}
-				// 			this.updateTempMetadata(n,1)
-				// 		}else{
-				// 			newContent+=lines[n]+"\n";
-				// 		}
-				// 	}
-				// 	this.data = newContent
-				// }else{
-				// 	if(yamlObject){
-				// 		if(yamlObject.blockTimestamp){
-				// 			yamlObject.blockTimestamp = yamlObject.blockTimestamp.map((bt:any)=>{
-				// 				if(bt.id == bm.firstLineofBlock){
-				// 					bt.modified=bm.timestamp
-				// 				}
-				// 				return bt
-				// 			})
-				// 		}
-				// 	}
-				// }
 			}
 		})
 	}
@@ -314,26 +174,10 @@ export default class MyPlugin extends Plugin {
 	async updateDoc(currentFile:TFile){
 		//update yaml and the content
 		//get yaml as object
-		// var yamlString = this.getYamlString()
-		// var yamlObject = YAML.parse(yamlString)
-		// var noYaml=true
-		// if(yamlObject){	
-		// 	noYaml=false
-		// }
-		// yamlObject = this.updateYamlObject(yamlObject)
-		// yamlObject=this.cleanMetadata(yamlObject)
-		// var noYaml=true
-		// if(this.yamlObject){	
-		// 	noYaml=false
-		// }
-		
 		this.updateYamlObject()
 		this.cleanMetadata()
 		this.updateBlockMetadata(0,this.linesChanged)
-		
 		//update the content
-		// console.log("noYaml",noYaml)
-		console.log("yamlObject",this.yamlObject)
 		if(this.yamlObject){
 			var yamlString = YAML.stringify(this.yamlObject)//yamlString already include end newline
 			var oldYaml = YAML.parse(this.getYamlString())
@@ -350,10 +194,15 @@ export default class MyPlugin extends Plugin {
 			const cursorPos = this.cm.getCursor()
 			cursorPos.line += this.linesChanged
 			await this.app.vault.modify(currentFile,this.data)
+			if(cursorPos.line<0){
+				cursorPos.line=0
+			}else if(cursorPos.line>=this.data.split("\n").length){
+				cursorPos.line = this.data.split("\n").length-1
+			}
 			this.cm.setCursor(cursorPos)
 			this.linesChanged=0
 			this.blockMetadata = new Array()
-			// this.yamlObject = this.getYamlString()
+			console.log("modified")
 		}
 	}
 
@@ -386,18 +235,16 @@ export default class MyPlugin extends Plugin {
 	}
 	
 	async handleChange(cm:CodeMirror.Editor,co:CodeMirror.EditorChangeLinkedList){
-		const leaf = this.app.workspace.activeLeaf;
+			const leaf = this.app.workspace.activeLeaf;
 			if(!leaf)
 				return;
 			const currentView = leaf.view as MarkdownView;
 			const currentFile = currentView.file
 			this.currentFile = currentFile
 			this.data = cm.getValue()
-			// this.yamlObject = YAML.parse(this.getYamlString())
 			const changeTime = this.formatDate(new Date())
-			const startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);			
+			const startLineOfCurrentBlock = this.getStartLineOfCurrentBlock(cm);
 			const lines = this.data.split("\n")
-			// console.log(lines[startLineOfCurrentBlock])
 			var currentLength = lines.length
 
 			if(this.modifiedThroughPlugin){
@@ -426,7 +273,7 @@ export default class MyPlugin extends Plugin {
 			}
 
 			//cursor is in the metadata, return
-			if(startLineOfCurrentBlock == 0 && lines[startLineOfCurrentBlock].startsWith("---")){
+			if(startLineOfCurrentBlock == 1 && lines[startLineOfCurrentBlock-1] == '---'){
 				this.lastCursorPosition = cm.getCursor()
 				this.lastLineLength=currentLength
 				return;
@@ -513,6 +360,8 @@ export default class MyPlugin extends Plugin {
 		console.log('loading plugin');
 		this.registerCodeMirror((cm: CodeMirror.Editor) => {
 			this.cm=cm
+			this.data = cm.getValue()
+			this.yamlObject = YAML.parse(this.getYamlString())
 			this.lastLineLength=cm.getValue().split("\n").length
 			this.listenForCursorPosition = this.listenForCursorPosition.bind(this);
 			cm.on("cursorActivity",this.listenForCursorPosition)
