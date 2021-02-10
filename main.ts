@@ -112,11 +112,8 @@ export default class MyPlugin extends Plugin {
 	isBlockMetadataStillValid(bm:any){
 		//check if the temp block metadata still valid
 		//it's still valid if the line above is either empty line, ---, or ```, or it's the first line
-		//or if it's the start of a code block 
 		const lines = this.data.split("\n")
 		if(lines[bm.lineNumber] == bm.firstLineofBlock){
-			if(lines[bm.lineNumber].startsWith("```"))
-				return true
 			if(bm.lineNumber == 0 || (bm.lineNumber>0 && (lines[bm.lineNumber-1] == '' 
 			|| lines[bm.lineNumber-1] == '---' || lines[bm.lineNumber-1] == '```' || lines[bm.lineNumber-1].startsWith("```"))))
 				return true
@@ -126,8 +123,6 @@ export default class MyPlugin extends Plugin {
 
 	cleanMetadata(yamlObject:any){
 		//clean the metadata from non-existing block
-		var yamlString=this.getYamlString()
-		var yamlObject = YAML.parse(yamlString)
 		//run through each blocktimestamp element and check if that block still exist
 		if(yamlObject){
 			if(yamlObject.blockTimestamp){
@@ -254,11 +249,6 @@ export default class MyPlugin extends Plugin {
 			const cursorPos = this.cm.getCursor()
 			cursorPos.line += this.linesChanged
 			await this.app.vault.modify(currentFile,this.data)
-			if(cursorPos.line<0){
-				cursorPos.line=0
-			}else if(cursorPos.line>=this.data.split("\n").length){
-				cursorPos.line = this.data.split("\n").length-1
-			}
 			this.cm.setCursor(cursorPos)
 			this.linesChanged=0
 			this.blockMetadata = new Array()
@@ -281,7 +271,7 @@ export default class MyPlugin extends Plugin {
 	}
 	
 	async handleChange(cm:CodeMirror.Editor,co:CodeMirror.EditorChangeLinkedList){
-			const leaf = this.app.workspace.activeLeaf;
+		const leaf = this.app.workspace.activeLeaf;
 			if(!leaf)
 				return;
 			const currentView = leaf.view as MarkdownView;
@@ -317,7 +307,7 @@ export default class MyPlugin extends Plugin {
 			}
 
 			//cursor is in the metadata, return
-			if(startLineOfCurrentBlock == 1 && lines[startLineOfCurrentBlock-1] == '---'){
+			if(startLineOfCurrentBlock == 0 && lines[startLineOfCurrentBlock].startsWith("---")){
 				this.lastCursorPosition = cm.getCursor()
 				this.lastLineLength=currentLength
 				return;
@@ -400,8 +390,6 @@ export default class MyPlugin extends Plugin {
 		console.log('loading plugin');
 		this.registerCodeMirror((cm: CodeMirror.Editor) => {
 			this.cm=cm
-			this.data = cm.getValue()
-			// this.yamlObject = YAML.parse(this.getYamlString())
 			this.lastLineLength=cm.getValue().split("\n").length
 			this.listenForCursorPosition = this.listenForCursorPosition.bind(this);
 			cm.on("cursorActivity",this.listenForCursorPosition)
