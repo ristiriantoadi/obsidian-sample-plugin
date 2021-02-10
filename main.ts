@@ -99,6 +99,8 @@ export default class MyPlugin extends Plugin {
 
 	cleanMetadata(){
 		//clean the metadata from non-existing block
+		var yamlString=this.getYamlString()
+		var yamlObject = YAML.parse(yamlString)
 		//run through each blocktimestamp element and check if that block still exist
 		if(this.yamlObject){
 			if(this.yamlObject.blockTimestamp){
@@ -174,9 +176,20 @@ export default class MyPlugin extends Plugin {
 	async updateDoc(currentFile:TFile){
 		//update yaml and the content
 		//get yaml as object
+<<<<<<< HEAD
 		this.updateYamlObject()
 		this.cleanMetadata()
 		this.updateBlockMetadata(0,this.linesChanged)
+=======
+		var yamlString = this.getYamlString()
+		var yamlObject = YAML.parse(yamlString)
+		var noYaml=true
+		if(yamlObject){	
+			noYaml=false
+		}
+		yamlObject=this.cleanMetadata()
+		yamlObject = this.updateYamlObject(yamlObject)
+>>>>>>> parent of b4aaaac... refactor
 		//update the content
 		if(this.yamlObject){
 			var yamlString = YAML.stringify(this.yamlObject)//yamlString already include end newline
