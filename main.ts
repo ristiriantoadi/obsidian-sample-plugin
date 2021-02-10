@@ -176,11 +176,6 @@ export default class MyPlugin extends Plugin {
 	async updateDoc(currentFile:TFile){
 		//update yaml and the content
 		//get yaml as object
-<<<<<<< HEAD
-		this.updateYamlObject()
-		this.cleanMetadata()
-		this.updateBlockMetadata(0,this.linesChanged)
-=======
 		var yamlString = this.getYamlString()
 		var yamlObject = YAML.parse(yamlString)
 		var noYaml=true
@@ -189,7 +184,6 @@ export default class MyPlugin extends Plugin {
 		}
 		yamlObject=this.cleanMetadata()
 		yamlObject = this.updateYamlObject(yamlObject)
->>>>>>> parent of b4aaaac... refactor
 		//update the content
 		if(this.yamlObject){
 			var yamlString = YAML.stringify(this.yamlObject)//yamlString already include end newline
